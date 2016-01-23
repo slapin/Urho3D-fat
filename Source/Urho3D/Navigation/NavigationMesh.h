@@ -67,7 +67,7 @@ struct NavigationGeometryInfo
 };
 
 /// A flag representing the type of path point- none, the start of a path segment, the end of one, or an off-mesh connection.
-enum NavigationPathPointFlag
+enum NONSCRIPTABLE NavigationPathPointFlag
 {
     NAVPATHFLAG_NONE = 0,
     NAVPATHFLAG_START = 0x01,
@@ -75,7 +75,7 @@ enum NavigationPathPointFlag
     NAVPATHFLAG_OFF_MESH = 0x04
 };
 
-struct URHO3D_API NavigationPathPoint
+struct URHO3D_API NONSCRIPTABLE NavigationPathPoint
 {
     /// World-space position of the path point
     Vector3 position_;
