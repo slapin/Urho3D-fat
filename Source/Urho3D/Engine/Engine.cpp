@@ -57,6 +57,9 @@
 #ifdef URHO3D_URHO2D
 #include "../Urho2D/Urho2D.h"
 #endif
+#ifdef URHO3D_ICEWEASELMODS
+#include "../IceWeaselMods/IceWeasel.h"
+#endif
 
 #if defined(__EMSCRIPTEN__) && defined(URHO3D_TESTING)
 #include <emscripten/emscripten.h>
@@ -144,6 +147,10 @@ Engine::Engine(Context* context) :
 
 #ifdef URHO3D_NAVIGATION
     RegisterNavigationLibrary(context_);
+#endif
+
+#ifdef URHO3D_ICEWEASELMODS
+    RegisterIceWeaselMods(context_);
 #endif
 
     SubscribeToEvent(E_EXITREQUESTED, URHO3D_HANDLER(Engine, HandleExitRequested));
