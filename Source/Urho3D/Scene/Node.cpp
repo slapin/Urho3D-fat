@@ -356,7 +356,7 @@ void Node::AddTag(const String& tag)
     // Check if tag empty or already added
     if (tag.Empty() || HasTag(tag))
         return;
-    
+
     // Add tag
     impl_->tags_.Push(tag);
 
@@ -408,7 +408,7 @@ bool Node::RemoveTag(const String& tag)
         eventData[P_TAG] = tag;
         scene_->SendEvent(E_NODETAGREMOVED, eventData);
     }
-    
+
     // Sync
     MarkNetworkUpdate();
     return true;
@@ -1290,6 +1290,16 @@ Node* Node::GetChild(StringHash nameHash, bool recursive) const
     }
 
     return 0;
+}
+
+bool Node::IsAncestorOf(Node* node) const
+{
+    do {
+        if(node == this)
+            return true;
+    } while((node = node->GetParent()));
+
+    return false;
 }
 
 unsigned Node::GetNumNetworkComponents() const
