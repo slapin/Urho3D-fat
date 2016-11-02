@@ -622,6 +622,11 @@ macro(CheckWayland)
       file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/wayland-generated-protocols")
       include_directories("${CMAKE_CURRENT_BINARY_DIR}/wayland-generated-protocols")
 
+      # TODO: It seems we are forced to revert back to use pkg-config tool here. The scanner thingy can only work when we are not cross-compiling.
+      set (WAYLAND_CORE_PROTOCOL_DIR ${SYSROOT}/usr/share/wayland)
+      set (WAYLAND_PROTOCOLS_DIR ${SYSROOT}/usr/share/wayland-protocols)
+      set (WAYLAND_SCANNER /usr/bin/wayland-scanner)
+
       WaylandProtocolGen("${WAYLAND_SCANNER}" "${WAYLAND_CORE_PROTOCOL_DIR}/wayland.xml" "wayland")
 
       foreach(_PROTL relative-pointer-unstable-v1 pointer-constraints-unstable-v1)
