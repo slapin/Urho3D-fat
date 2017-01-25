@@ -182,7 +182,9 @@ bool Engine::Initialize(const VariantMap& parameters)
     {
         if(SDL_Init(sdlFlags) != 0)
         {
+#ifdef URHO3D_LOGGING
             URHO3D_LOGERRORF("Failed to initialise SDL: %s\n", SDL_GetError());
+#endif
             return false;
         }
     }
