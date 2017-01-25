@@ -288,12 +288,6 @@ Graphics::Graphics(Context* context) :
     apiName_("D3D9")
 {
     SetTextureUnitMappings();
-
-    // Initialize SDL now. Graphics should be the first SDL-using subsystem to be created
-    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER | SDL_INIT_NOPARACHUTE);
-
-    // Register Graphics library object factories
-    RegisterGraphicsLibrary(context_);
 }
 
 Graphics::~Graphics()
@@ -324,9 +318,6 @@ Graphics::~Graphics()
 
     delete impl_;
     impl_ = 0;
-
-    // Shut down SDL now. Graphics should be the last SDL-using subsystem to be destroyed
-    SDL_Quit();
 }
 
 bool Graphics::SetMode(int width, int height, bool fullscreen, bool borderless, bool resizable, bool highDPI, bool vsync,
@@ -886,7 +877,7 @@ bool Graphics::ResolveToTexture(TextureCube* texture)
         return false;
 
     URHO3D_PROFILE(ResolveToTexture);
-    
+
     texture->SetResolveDirty(false);
 
     RECT rect;
@@ -2432,7 +2423,7 @@ void Graphics::CheckFeatureSupport()
 {
     anisotropySupport_ = true;
     dxtTextureSupport_ = true;
-    
+
     // Reset features first
     lightPrepassSupport_ = false;
     deferredSupport_ = false;

@@ -307,16 +307,22 @@ endforeach()
 # Urho3D - bug fix - only make the COCOA option available on OSX platform but not iOS/tvOS; it does not make too much sense now for user to disable it because SDL/Apple has dropped support for XQuartz (X11 on Mac), so Cocoa is the only video driver available
 #          But we still keep it as an option here because it should be possible to add back the XQuartz support
 dep_option(VIDEO_COCOA         "Use Cocoa video driver" ON "APPLE AND NOT IOS AND NOT TVOS" OFF)
-# Urho3D - only make DIRECTX option available on Windows platform when URHO3D_OPENGL is enabled, i.e. DIRECTX variable must always be ON (not an option) when URHO3D_OPENGL is disabled because in this case it must depend on Direct3D which is a component of DirectX
+# Urho3D - only make DIRECTX option available on Windows platform when URHO3D_OPENGL OR URHO3D_VULKAN
+# is enabled, i.e. DIRECTX variable must always be ON (not an option) when URHO3D_OPENGL and URHO3D_VULKAN
+# is disabled because in this case it must depend on Direct3D which is a component of DirectX
 if (WINDOWS)
-  dep_option(DIRECTX           "Use DirectX for Windows audio/video" ON URHO3D_OPENGL ON)
+  set (FORCE_DIRECTX ON)
+  if (URHO3D_OPENGL or URHO3D_VULKAN)
+    set (FORCE_DIRECTX OFF)
+  endif ()
+  dep_option(DIRECTX           "Use DirectX for Windows audio/video" ON FORCE_DIRECTX ON)
 else ()
   set (DIRECTX OFF)  # Make it off explicitly when not targeting Windows platform, just in case user passes it in accidentally via CLI
 endif ()
 # Urho3D - commented out RENDER_D3D as an option to avoid potential conflict with our URHO3D_OPENGL and URHO3D_D3D11 build options on Windows platform
 #          Instead just initialize the variable according to our build options; Urho3D also by default disables the SDL renderer subsystem
 if (WINDOWS)
-  if (URHO3D_OPENGL)
+  if (URHO3D_OPENGL or URHO3D_VULKAN)
     set (RENDER_D3D FALSE)
   else ()
     set (RENDER_D3D TRUE)

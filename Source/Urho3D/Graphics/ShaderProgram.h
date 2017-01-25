@@ -25,9 +25,13 @@
 // Note: ShaderProgram class is purposefully API-specific. It should not be used by Urho3D client applications.
 
 #if defined(URHO3D_OPENGL)
-#include "OpenGL/OGLShaderProgram.h"
+#   include "OpenGL/OGLShaderProgram.h"
+#elif defined(URHO3D_VULKAN)
+#   include "Vulkan/VkShaderProgram.h"
 #elif defined(URHO3D_D3D11)
-#include "Direct3D11/D3D11ShaderProgram.h"
+#   include "Direct3D11/D3D11ShaderProgram.h"
+#elif defined (URHO3D_D3D9)
+#   include "Direct3D9/D3D9ShaderProgram.h"
 #else
-#include "Direct3D9/D3D9ShaderProgram.h"
+#   error No graphics API defined
 #endif

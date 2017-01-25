@@ -408,6 +408,11 @@ if (URHO3D_VULKAN)
     set (URHO3D_OPENGL 0)
 endif ()
 
+# Add definitions for Vulkan
+if (URHO3D_VULKAN)
+    add_definitions (-DURHO3D_VULKAN)
+endif ()
+
 # Add definitions for GLEW
 if (NOT ANDROID AND NOT ARM AND NOT WEB AND URHO3D_OPENGL)
     add_definitions (-DGLEW_STATIC -DGLEW_NO_GLU)

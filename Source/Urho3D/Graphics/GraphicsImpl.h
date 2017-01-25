@@ -26,9 +26,13 @@
 // unless required for e.g. integration of 3rd party libraries that interface directly with the graphics device.
 
 #if defined(URHO3D_OPENGL)
-#include "OpenGL/OGLGraphicsImpl.h"
+#   include "OpenGL/OGLGraphicsImpl.h"
+#elif defined(URHO3D_VULKAN)
+#   include "Vulkan/VkGraphicsImpl.h"
 #elif defined(URHO3D_D3D11)
-#include "Direct3D11/D3D11GraphicsImpl.h"
+#   include "Direct3D11/D3D11GraphicsImpl.h"
+#elif defined(URHO3D_D3D9)
+#   include "Direct3D9/D3D9GraphicsImpl.h"
 #else
-#include "Direct3D9/D3D9GraphicsImpl.h"
+#   error No graphics API defined
 #endif

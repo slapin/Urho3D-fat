@@ -65,6 +65,8 @@
 
 #include "../DebugNew.h"
 
+#include <SDL/SDL.h>
+
 
 #if defined(_MSC_VER) && defined(_DEBUG)
 // From dbgint.h
@@ -87,6 +89,7 @@ namespace Urho3D
 {
 
 extern const char* logLevelPrefixes[];
+static unsigned sdlInitCalls = 0;
 
 Engine::Engine(Context* context) :
     Object(context),
@@ -152,6 +155,11 @@ Engine::Engine(Context* context) :
 
 Engine::~Engine()
 {
+    // Initialize SDL now. Graphics is the first subsystem to use SDL functions.
+    // Vulkan doesn't really require SDL for video, so no need for SDL_INIT_VIDEO
+    // in that case
+    if(--sdlInitCalls == 0)
+        SDL_Quit();
 }
 
 bool Engine::Initialize(const VariantMap& parameters)
@@ -160,6 +168,25 @@ bool Engine::Initialize(const VariantMap& parameters)
         return true;
 
     URHO3D_PROFILE(InitEngine);
+
+    // Initialize SDL now. Graphics is the first subsystem to use SDL functions.
+    // Vulkan doesn't really require SDL for video, so no need for SDL_INIT_VIDEO
+    // in that case. SDL_Init() is called once globally. If there are more
+    // instances of Engine, we keep track of how many times SDL_Init would have
+    // been called.
+    unsigned sdlFlags = SDL_INIT_AUDIO | SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER | SDL_INIT_NOPARACHUTE;
+#ifndef URHO3D_VULKAN
+    sdlFlags |= SDL_INIT_VIDEO;
+#endif
+    if(sdlInitCalls == 0)
+    {
+        if(SDL_Init(sdlFlags) != 0)
+        {
+            URHO3D_LOGERRORF("Failed to initialise SDL: %s\n", SDL_GetError());
+            return false;
+        }
+    }
+    ++sdlInitCalls;
 
     // Set headless mode
     headless_ = GetParameter(parameters, EP_HEADLESS, false).GetBool();
@@ -170,11 +197,11 @@ bool Engine::Initialize(const VariantMap& parameters)
         context_->RegisterSubsystem(new Graphics(context_));
         context_->RegisterSubsystem(new Renderer(context_));
     }
-    else
-    {
-        // Register graphics library objects explicitly in headless mode to allow them to work without using actual GPU resources
-        RegisterGraphicsLibrary(context_);
-    }
+
+    // Register graphics library objects, regardless of whether we are in
+    // headless mode or not. (This used to be called in Grahpics constructor
+    // or here if headless mode was activated -> i.e. it was always called.)
+    RegisterGraphicsLibrary(context_);
 
 #ifdef URHO3D_URHO2D
     // 2D graphics library is dependent on 3D graphics library
