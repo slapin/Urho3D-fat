@@ -22,44 +22,18 @@
 
 #pragma once
 
-#include "../../Container/HashMap.h"
-#include "../../Core/Timer.h"
-#include "../../Graphics/ConstantBuffer.h"
-#include "../../Graphics/ShaderProgram.h"
-#include "../../Graphics/Texture2D.h"
-#include "../../Math/Color.h"
+#define VK_NO_PROTOTYPES
+#include <vulkan/vulkan.h>
+
+#include "../../IO/SharedLibrary.h"
 
 namespace Urho3D
 {
 
-class Context;
-
-typedef HashMap<unsigned, SharedPtr<ConstantBuffer> > ConstantBufferMap;
-typedef HashMap<Pair<ShaderVariation*, ShaderVariation*>, SharedPtr<ShaderProgram> > ShaderProgramMap;
-
-/// Cached state of a frame buffer object
-struct FrameBufferObject
+struct VulkanAPI
 {
-    FrameBufferObject() :
-        fbo_(0),
-        depthAttachment_(0),
-        readBuffers_(M_MAX_UNSIGNED),
-        drawBuffers_(M_MAX_UNSIGNED)
-    {
-        for (unsigned i = 0; i < MAX_RENDERTARGETS; ++i)
-            colorAttachments_[i] = 0;
-    }
-
-    /// Frame buffer handle.
-    unsigned fbo_;
-    /// Bound color attachment textures.
-    RenderSurface* colorAttachments_[MAX_RENDERTARGETS];
-    /// Bound depth/stencil attachment.
-    RenderSurface* depthAttachment_;
-    /// Read buffer bits.
-    unsigned readBuffers_;
-    /// Draw buffer bits.
-    unsigned drawBuffers_;
+    PFN_vkCreateInstance  vkCreateInstance;
+    PFN_vkDestroyInstance vkDestroyInstance;
 };
 
 /// %Graphics subsystem implementation. Holds API-specific objects.
@@ -68,63 +42,15 @@ class URHO3D_API GraphicsImpl
     friend class Graphics;
 
 public:
-    /// Construct.
-    GraphicsImpl();
-
-    /// Return the GL Context.
-    //const SDL_GLContext& GetGLContext() { return context_; }
+    /// Construct
+    GraphicsImpl(Context* context);
 
 private:
-    /// SDL OpenGL context.
-    //SDL_GLContext context_;
-    /// IOS system framebuffer handle.
-    unsigned systemFBO_;
-    /// Active texture unit.
-    unsigned activeTexture_;
-    /// Enabled vertex attributes bitmask.
-    unsigned enabledVertexAttributes_;
-    /// Vertex attributes bitmask used by the current shader program.
-    unsigned usedVertexAttributes_;
-    /// Vertex attribute instancing bitmask for keeping track of divisors.
-    unsigned instancingVertexAttributes_;
-    /// Current mapping of vertex attribute locations by semantic. The map is owned by the shader program, so care must be taken to switch a null shader program when it's destroyed.
-    const HashMap<Pair<unsigned char, unsigned char>, unsigned>* vertexAttributes_;
-    /// Currently bound frame buffer object.
-    unsigned boundFBO_;
-    /// Currently bound vertex buffer object.
-    unsigned boundVBO_;
-    /// Currently bound uniform buffer object.
-    unsigned boundUBO_;
-    /// Read frame buffer for multisampled texture resolves.
-    unsigned resolveSrcFBO_;
-    /// Write frame buffer for multisampled texture resolves.
-    unsigned resolveDestFBO_;
-    /// Current pixel format.
-    int pixelFormat_;
-    /// Map for FBO's per resolution and format.
-    HashMap<unsigned long long, FrameBufferObject> frameBuffers_;
-    /// OpenGL texture types in use.
-    unsigned textureTypes_[MAX_TEXTURE_UNITS];
-    /// Constant buffer search map.
-    ConstantBufferMap allConstantBuffers_;
-    /// Currently bound constant buffers.
-    ConstantBuffer* constantBuffers_[MAX_SHADER_PARAMETER_GROUPS * 2];
-    /// Dirty constant buffers.
-    PODVector<ConstantBuffer*> dirtyConstantBuffers_;
-    /// Last used instance data offset.
-    unsigned lastInstanceOffset_;
-    /// Map for additional depth textures, to emulate Direct3D9 ability to mix render texture and backbuffer rendering.
-    HashMap<int, SharedPtr<Texture2D> > depthTextures_;
-    /// Shader program in use.
-    ShaderProgram* shaderProgram_;
-    /// Linked shader programs.
-    ShaderProgramMap shaderPrograms_;
-    /// Need FBO commit flag.
-    bool fboDirty_;
-    /// Need vertex attribute pointer update flag.
-    bool vertexBuffersDirty_;
-    /// sRGB write mode flag.
-    bool sRGBWrite_;
+    /// Vulkan shared library
+    SharedLibrary module_;
+    VkInstance instance_;
+
+    VulkanAPI api;
 };
 
 }

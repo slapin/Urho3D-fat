@@ -411,6 +411,8 @@ endif ()
 # Add definitions for Vulkan
 if (URHO3D_VULKAN)
     add_definitions (-DURHO3D_VULKAN)
+    # TODO this sucks
+    include_directories ("${CMAKE_SOURCE_DIR}/build_debug/bin/VulkanSDK/1.0.39.0/x86_64/include")
 endif ()
 
 # Add definitions for GLEW

@@ -45,6 +45,8 @@
 
 #include "../../DebugNew.h"
 
+#include "VulkanUtils.h"
+
 #ifdef _WIN32
 // Prefer the high-performance GPU on switchable GPU systems
 #include <windows.h>
@@ -59,12 +61,52 @@ namespace Urho3D
 {
 
 // ----------------------------------------------------------------------------
+// Vulkan should use our debug memory allocation if enabled
+#if defined(URHO3D_VULKAN_USE_DEBUG_MALLOC)
+void*
+allocationFunction(void* pUserData, size_t  size,  size_t  alignment, VkSystemAllocationScope allocationScope)
+{
+    /* Ignore alignment, for while */
+    if(size == 0)
+        return (void*)0;
+    return MALLOC(size, "allocationFunction() (vulkan malloc wrapper)"); /*_aligned_malloc(size, alignment); */
+}
+
+void* reallocationFunction(void* pUserData, void* pOriginal, size_t size, size_t alignment, VkSystemAllocationScope allocationScope)
+{
+    printf("pAllocator's REallocationFunction: size %lu, alignment %lu, allocationScope %d \n",
+    size, alignment, allocationScope);
+    assert(0);
+    return realloc(pOriginal, size);
+}
+
+void
+freeFunction(void* pUserData, void* pMemory)
+{
+    if(pMemory)
+        FREE(pMemory);
+}
+
+VkAllocationCallbacks g_allocators = {
+    NULL,                 /* pUserData;             */
+    allocation_function,  /* pfnAllocation;         */
+    reallocation_function,/* pfnReallocation;       */
+    free_function,        /* pfnFree;               */
+    NULL,                 /* pfnInternalAllocation; */
+    NULL                  /* pfnInternalFree;       */
+};
+VkAllocationCallbacks* g_allocators_ptr = &g_allocators;
+#else /* URHO3D_VULKAN_USE_DEBUG_MALLOC */
+VkAllocationCallbacks* g_allocators_ptr = NULL;
+#endif /* URHO3D_VULKAN_USE_DEBUG_MALLOC */
+
+// ----------------------------------------------------------------------------
 const Vector2 Graphics::pixelUVOffset(0.0f, 0.0f);
 bool Graphics::gl3Support = false;
 
 Graphics::Graphics(Context* context_) :
     Object(context_),
-    impl_(new GraphicsImpl()),
+    impl_(new GraphicsImpl(context_)),
     window_(0),
     externalWindow_(0),
     width_(0),
@@ -102,8 +144,46 @@ Graphics::Graphics(Context* context_) :
     orientations_("LandscapeLeft LandscapeRight"),
     apiName_("GL2")
 {
-    SetTextureUnitMappings();
-    ResetCachedState();
+    // Library name is platform dependent.
+#if defined(_WIN32)
+#   define VULKAN_LIB_NAME ".\\vulkan-1.dll"
+#elif defined(__APPLE__)
+#   define VULKAN_LIB_NAME "./libvulkan.dynlib.1"
+#elif defined(__linux__)
+    // TODO configure this in CMake
+#   define VULKAN_LIB_NAME "VulkanSDK/1.0.39.0/x86_64/lib/libvulkan.so.1"
+#else
+#   error Vulkan is not supported on this platform.
+#endif
+
+    // Attempt to load Vulkan shared library
+    if(impl_->module_.Open(VULKAN_LIB_NAME) == false)
+        return;  // Error message will have been written to log file
+
+    vkApplicationInfo applicationInfo;
+    applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    applicationInfo.pNext = NULL;
+    applicationInfo.pApplicationName = NULL;
+    applicationInfo.pEngineName = "Urho3D";
+    applicationInfo.engineVersion = 1;
+    applicationInfo.apiVersion = VK_API_VERSION;
+
+    vkInstanceCreateInfo instanceInfo;
+    instanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    instanceInfo.pNext = NULL;
+    instanceInfo.flags = 0;
+    instanceInfo.pApplicationInfo = &applicationInfo;
+    instanceInfo.enabledLayerCount = 0;
+    instanceInfo.ppEnabledExtensionNames = NULL;
+
+    vkResult result = impl_->api.vkCreateInstance(&instanceInfo, NULL, &impl_->instance_);
+    if(result != VK_SUCCESS)
+    {
+#ifdef URHO3D_LOGGING
+        URHO3D_LOGERRORF("Failed to create vulkan instance: %s", VulkanUtils::VulkanResultToString(result));
+#endif
+        return;
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -382,14 +462,6 @@ bool Graphics::ResolveToTexture(Texture2D* texture)
     texture->SetResolveDirty(false);
     surface->SetResolveDirty(false);
 
-    // Use separate FBOs for resolve to not disturb the currently set rendertarget(s)
-    if (!impl_->resolveSrcFBO_)
-        impl_->resolveSrcFBO_ = CreateFramebuffer();
-    if (!impl_->resolveDestFBO_)
-        impl_->resolveDestFBO_ = CreateFramebuffer();
-
-    // Restore previously bound FBO
-    BindFramebuffer(impl_->boundFBO_);
     return true;
 }
 
@@ -403,14 +475,6 @@ bool Graphics::ResolveToTexture(TextureCube* texture)
 
     texture->SetResolveDirty(false);
 
-    // Use separate FBOs for resolve to not disturb the currently set rendertarget(s)
-    if (!impl_->resolveSrcFBO_)
-        impl_->resolveSrcFBO_ = CreateFramebuffer();
-    if (!impl_->resolveDestFBO_)
-        impl_->resolveDestFBO_ = CreateFramebuffer();
-
-    // Restore previously bound FBO
-    BindFramebuffer(impl_->boundFBO_);
     return true;
 }
 
@@ -570,26 +634,21 @@ void Graphics::SetShaderParameter(StringHash param, const Matrix3x4& matrix)
 // ----------------------------------------------------------------------------
 bool Graphics::NeedParameterUpdate(ShaderParameterGroup group, const void* source)
 {
-    return impl_->shaderProgram_ ? impl_->shaderProgram_->NeedParameterUpdate(group, source) : false;
 }
 
 // ----------------------------------------------------------------------------
 bool Graphics::HasShaderParameter(StringHash param)
 {
-    return impl_->shaderProgram_ && impl_->shaderProgram_->HasParameter(param);
 }
 
 // ----------------------------------------------------------------------------
 bool Graphics::HasTextureUnit(TextureUnit unit)
 {
-    return impl_->shaderProgram_ && impl_->shaderProgram_->HasTextureUnit(unit);
 }
 
 // ----------------------------------------------------------------------------
 void Graphics::ClearParameterSource(ShaderParameterGroup group)
 {
-    if (impl_->shaderProgram_)
-        impl_->shaderProgram_->ClearParameterSource(group);
 }
 
 // ----------------------------------------------------------------------------
@@ -601,11 +660,6 @@ void Graphics::ClearParameterSources()
 // ----------------------------------------------------------------------------
 void Graphics::ClearTransformSources()
 {
-    if (impl_->shaderProgram_)
-    {
-        impl_->shaderProgram_->ClearParameterSource(SP_CAMERA);
-        impl_->shaderProgram_->ClearParameterSource(SP_OBJECT);
-    }
 }
 
 // ----------------------------------------------------------------------------
@@ -827,7 +881,6 @@ VertexBuffer* Graphics::GetVertexBuffer(unsigned index) const
 // ----------------------------------------------------------------------------
 ShaderProgram* Graphics::GetShaderProgram() const
 {
-    return impl_->shaderProgram_;
 }
 
 // ----------------------------------------------------------------------------
@@ -905,16 +958,6 @@ void Graphics::CleanupRenderSurface(RenderSurface* surface)
 // ----------------------------------------------------------------------------
 void Graphics::CleanupShaderPrograms(ShaderVariation* variation)
 {
-    for (ShaderProgramMap::Iterator i = impl_->shaderPrograms_.Begin(); i != impl_->shaderPrograms_.End();)
-    {
-        if (i->second_->GetVertexShader() == variation || i->second_->GetPixelShader() == variation)
-            i = impl_->shaderPrograms_.Erase(i);
-        else
-            ++i;
-    }
-
-    if (vertexShader_ == variation || pixelShader_ == variation)
-        impl_->shaderProgram_ = 0;
 }
 
 // ----------------------------------------------------------------------------
@@ -935,7 +978,6 @@ void Graphics::Restore()
 // ----------------------------------------------------------------------------
 void Graphics::MarkFBODirty()
 {
-    impl_->fboDirty_ = true;
 }
 
 // ----------------------------------------------------------------------------
@@ -1082,92 +1124,11 @@ void Graphics::PrepareDraw()
 // ----------------------------------------------------------------------------
 void Graphics::CleanupFramebuffers()
 {
-    if (!IsDeviceLost())
-    {
-        BindFramebuffer(impl_->systemFBO_);
-        impl_->boundFBO_ = impl_->systemFBO_;
-        impl_->fboDirty_ = true;
-
-        for (HashMap<unsigned long long, FrameBufferObject>::Iterator i = impl_->frameBuffers_.Begin();
-             i != impl_->frameBuffers_.End(); ++i)
-            DeleteFramebuffer(i->second_.fbo_);
-
-        if (impl_->resolveSrcFBO_)
-            DeleteFramebuffer(impl_->resolveSrcFBO_);
-        if (impl_->resolveDestFBO_)
-            DeleteFramebuffer(impl_->resolveDestFBO_);
-    }
-    else
-    {
-        impl_->boundFBO_ = 0;
-        impl_->resolveSrcFBO_ = 0;
-        impl_->resolveDestFBO_ = 0;
-    }
-
-    impl_->frameBuffers_.Clear();
 }
 
 // ----------------------------------------------------------------------------
 void Graphics::ResetCachedState()
 {
-    for (unsigned i = 0; i < MAX_VERTEX_STREAMS; ++i)
-        vertexBuffers_[i] = 0;
-
-    for (unsigned i = 0; i < MAX_TEXTURE_UNITS; ++i)
-    {
-        textures_[i] = 0;
-        impl_->textureTypes_[i] = 0;
-    }
-
-    for (unsigned i = 0; i < MAX_RENDERTARGETS; ++i)
-        renderTargets_[i] = 0;
-
-    depthStencil_ = 0;
-    viewport_ = IntRect(0, 0, 0, 0);
-    indexBuffer_ = 0;
-    vertexShader_ = 0;
-    pixelShader_ = 0;
-    blendMode_ = BLEND_REPLACE;
-    alphaToCoverage_ = false;
-    colorWrite_ = true;
-    cullMode_ = CULL_NONE;
-    constantDepthBias_ = 0.0f;
-    slopeScaledDepthBias_ = 0.0f;
-    depthTestMode_ = CMP_ALWAYS;
-    depthWrite_ = false;
-    lineAntiAlias_ = false;
-    fillMode_ = FILL_SOLID;
-    scissorTest_ = false;
-    scissorRect_ = IntRect::ZERO;
-    stencilTest_ = false;
-    stencilTestMode_ = CMP_ALWAYS;
-    stencilPass_ = OP_KEEP;
-    stencilFail_ = OP_KEEP;
-    stencilZFail_ = OP_KEEP;
-    stencilRef_ = 0;
-    stencilCompareMask_ = M_MAX_UNSIGNED;
-    stencilWriteMask_ = M_MAX_UNSIGNED;
-    useClipPlane_ = false;
-    impl_->shaderProgram_ = 0;
-    impl_->lastInstanceOffset_ = 0;
-    impl_->activeTexture_ = 0;
-    impl_->enabledVertexAttributes_ = 0;
-    impl_->usedVertexAttributes_ = 0;
-    impl_->instancingVertexAttributes_ = 0;
-    impl_->boundFBO_ = impl_->systemFBO_;
-    impl_->boundVBO_ = 0;
-    impl_->boundUBO_ = 0;
-    impl_->sRGBWrite_ = false;
-
-    // Set initial state to match Direct3D
-    //if (impl_->context_)
-    {
-        // TODO
-    }
-
-    for (unsigned i = 0; i < MAX_SHADER_PARAMETER_GROUPS * 2; ++i)
-        impl_->constantBuffers_[i] = 0;
-    impl_->dirtyConstantBuffers_.Clear();
 }
 
 // ----------------------------------------------------------------------------

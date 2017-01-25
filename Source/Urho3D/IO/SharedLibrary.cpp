@@ -89,18 +89,26 @@ const String& SharedLibrary::GetName() const
 // ----------------------------------------------------------------------------
 bool SharedLibrary::Open(const String& fileName)
 {
+#ifdef URHO3D_LOGGING
+    URHO3D_LOGDEBUGF("Loading shared library \"%s\"", fileName.CString());
+#endif
+
 #if defined(_WIN32)
     handle_= (void*)LoadLibrary(fileName.CString());
     if(handle_ == NULL)
     {
+#ifdef URHO3D_LOGGING
         URHO3D_LOGERRORF("Error loading \"%s\": %s", fileName.CString(), GetLastErrorString().CString());
+#endif
         return false;
     }
 #elif defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
     handle_ = dlopen(fileName.CString(), RTLD_LAZY);
     if(handle_ == NULL)
     {
+#ifdef URHO3D_LOGGING
         URHO3D_LOGERRORF("Error loading \"%s\": %s", fileName.CString(), dlerror());
+#endif
         return false;
     }
 #else
@@ -117,6 +125,10 @@ void SharedLibrary::Close()
 {
     if(handle_ == NULL)
         return;
+
+#ifdef URHO3D_LOGGING
+    URHO3D_LOGDEBUGF("Unloading shared library \"%s\"", fileName_.CString());
+#endif
 
 #if defined(_WIN32)
     FreeLibrary((HINSTANCE)handle_);
@@ -139,20 +151,29 @@ bool SharedLibrary::IsOpen() const
 void* SharedLibrary::LoadSymbol(const String& symbolName)
 {
     if (handle_ == NULL)
+    {
+#ifdef URHO3D_LOGGING
+    URHO3D_LOGERRORF("Can't load symbol \"%s\" because the shared library isn't loaded.", symbolName.CString());
+#endif
         return NULL;
+    }
 
 #if defined(_WIN32)
     FARPROC ptr = GetProcAddress((HINSTANCE)handle_, symbolName.CString());
     if(ptr == NULL)
     {
+#ifdef URHO3D_LOGGING
         URHO3D_LOGERRORF("Error loading symbol \"%s\": %s", symbolName.CString(), GetLastErrorString().CString());
+#endif
     }
     return *(void**)&ptr;
 #elif defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
     void* ptr = dlsym(handle_, symbolName.CString());
     if(ptr == NULL)
     {
+#ifdef URHO3D_LOGGING
         URHO3D_LOGERRORF("Error loading symbol \"%s\": %s", symbolName.CString(), dlerror());
+#endif
     }
     return ptr;
 #else
