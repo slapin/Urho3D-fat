@@ -22,18 +22,32 @@
 
 #pragma once
 
-#define VK_NO_PROTOTYPES
-#include <vulkan/vulkan.h>
-
+#include "VulkanDefines.h"
 #include "../../IO/SharedLibrary.h"
+
 
 namespace Urho3D
 {
 
+struct VulkanExtensionAPI
+{
+    PFN_vkCreateXlibSurfaceKHR vkCreateXlibSurfaceKHR;
+};
+
+struct VulkanLayerAPI
+{
+
+};
+
 struct VulkanAPI
 {
-    PFN_vkCreateInstance  vkCreateInstance;
-    PFN_vkDestroyInstance vkDestroyInstance;
+    PFN_vkCreateInstance                       vkCreateInstance;
+    PFN_vkDestroyInstance                      vkDestroyInstance;
+    PFN_vkEnumerateInstanceLayerProperties     vkEnumerateInstanceLayerProperties;
+    PFN_vkEnumerateInstanceExtensionProperties vkEnumerateInstanceExtensionProperties;
+
+    VulkanExtensionAPI ext_;
+    VulkanLayerAPI layer_;
 };
 
 /// %Graphics subsystem implementation. Holds API-specific objects.
@@ -49,8 +63,9 @@ private:
     /// Vulkan shared library
     SharedLibrary module_;
     VkInstance instance_;
+    VkSurfaceKHR surface_;
 
-    VulkanAPI api;
+    VulkanAPI api_;
 };
 
 }

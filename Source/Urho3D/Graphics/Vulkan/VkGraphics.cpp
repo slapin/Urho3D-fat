@@ -42,10 +42,12 @@
 #include "../../IO/File.h"
 #include "../../IO/Log.h"
 #include "../../Resource/ResourceCache.h"
+#include "VulkanUtils.h"
 
 #include "../../DebugNew.h"
 
-#include "VulkanUtils.h"
+#include <SDL/SDL.h>
+#include <SDL/SDL_syswm.h>
 
 #ifdef _WIN32
 // Prefer the high-performance GPU on switchable GPU systems
@@ -160,15 +162,26 @@ Graphics::Graphics(Context* context_) :
     if(impl_->module_.Open(VULKAN_LIB_NAME) == false)
         return;  // Error message will have been written to log file
 
-    vkApplicationInfo applicationInfo;
+    // make our lives a little easier
+#define LOAD_SYMBOL(symbol) \
+    if((*(void**)&impl_->api_.symbol = impl_->module_.LoadSymbol(#symbol)) == NULL) \
+        return;
+
+    // Load the symbols we need
+    LOAD_SYMBOL(vkCreateInstance);
+    LOAD_SYMBOL(vkDestroyInstance);
+    LOAD_SYMBOL(vkEnumerateInstanceLayerProperties);
+    LOAD_SYMBOL(vkEnumerateInstanceExtensionProperties);
+
+    VkApplicationInfo applicationInfo;
     applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     applicationInfo.pNext = NULL;
     applicationInfo.pApplicationName = NULL;
     applicationInfo.pEngineName = "Urho3D";
     applicationInfo.engineVersion = 1;
-    applicationInfo.apiVersion = VK_API_VERSION;
+    applicationInfo.apiVersion = VK_API_VERSION_1_0;
 
-    vkInstanceCreateInfo instanceInfo;
+    VkInstanceCreateInfo instanceInfo;
     instanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     instanceInfo.pNext = NULL;
     instanceInfo.flags = 0;
@@ -176,7 +189,7 @@ Graphics::Graphics(Context* context_) :
     instanceInfo.enabledLayerCount = 0;
     instanceInfo.ppEnabledExtensionNames = NULL;
 
-    vkResult result = impl_->api.vkCreateInstance(&instanceInfo, NULL, &impl_->instance_);
+    VkResult result = impl_->api_.vkCreateInstance(&instanceInfo, g_allocators_ptr, &impl_->instance_);
     if(result != VK_SUCCESS)
     {
 #ifdef URHO3D_LOGGING
@@ -211,27 +224,23 @@ bool Graphics::SetMode(int width, int height, bool fullscreen, bool borderless, 
     if (borderless)
         fullscreen = false;
 
-    multiSample = Clamp(multiSample, 1, 16);
-
-    if (IsInitialized() && width == width_ && height == height_ && fullscreen == fullscreen_ && borderless == borderless_ &&
-        resizable == resizable_ && vsync == vsync_ && tripleBuffer == tripleBuffer_ && multiSample == multiSample_)
-        return true;
-
-    // If only vsync changes, do not destroy/recreate the context
-    if (IsInitialized() && width == width_ && height == height_ && fullscreen == fullscreen_ && borderless == borderless_ &&
-        resizable == resizable_ && tripleBuffer == tripleBuffer_ && multiSample == multiSample_ && vsync != vsync_)
-    {
-        // TODO vsync change
-        vsync_ = vsync;
-        return true;
-    }
-
-    // If zero dimensions in windowed mode, set windowed mode to maximize and
-    // set a predefined default restored window size. If zero in fullscreen,
-    // use desktop mode
+    // If zero dimensions in windowed mode, set windowed mode to maximize and set a predefined default restored window size.
+    // If zero in fullscreen, use desktop mode
     if (!width || !height)
     {
-        // TODO Maximize window
+        if (fullscreen || borderless)
+        {
+            SDL_DisplayMode mode;
+            SDL_GetDesktopDisplayMode(0, &mode);
+            width = mode.w;
+            height = mode.h;
+        }
+        else
+        {
+            maximize = resizable;
+            width = 1024;
+            height = 768;
+        }
     }
 
     // Check fullscreen mode validity (desktop only). Use a closest match if not found
@@ -260,10 +269,45 @@ bool Graphics::SetMode(int width, int height, bool fullscreen, bool borderless, 
     }
 #endif
 
-    // With an external window, only the size can change after initial setup, so do not recreate context
-    if (externalWindow_)
+    // Open SDL window
+    int x = fullscreen ? 0 : position_.x_;
+    int y = fullscreen ? 0 : position_.y_;
+    unsigned flags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN;
+    if (fullscreen)
+        flags |= SDL_WINDOW_FULLSCREEN;
+    if (borderless)
+        flags |= SDL_WINDOW_BORDERLESS;
+    if (resizable)
+        flags |= SDL_WINDOW_RESIZABLE;
+    if (highDPI)
+        flags |= SDL_WINDOW_ALLOW_HIGHDPI;
+    window_ = SDL_CreateWindow(windowTitle_.CString(), x, y, width, height, flags);
+    if(window_ == NULL)
     {
-        // TODO handle external window
+        URHO3D_LOGERRORF("SDL_CreateWindow() failed: %s", SDL_GetError());
+        return false;
+    }
+
+    SDL_SysWMinfo windowInfo;
+    SDL_VERSION(&windowInfo.version);
+    if(SDL_GetWindowWMInfo(window_, &windowInfo) != SDL_TRUE)
+    {
+        URHO3D_LOGERRORF("SDL_GetWindowWMInfo() failed: %s", SDL_GetError());
+        return false;
+    }
+
+    VkXlibSurfaceCreateInfoKHR surfaceCreateInfo;
+    surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
+    surfaceCreateInfo.pNext = NULL;
+    surfaceCreateInfo.dpy = windowInfo.info.x11.display;
+    surfaceCreateInfo.window = windowInfo.info.x11.window;
+
+    VkResult result;
+    VkSurfaceKHR vkSurface;
+    result = impl_->api_.ext_.vkCreateXlibSurfaceKHR(impl_->instance_, &surfaceCreateInfo, NULL, &impl_->surface_);
+    if(result != VK_SUCCESS)
+    {
+        URHO3D_LOGERRORF("vkCreateXlibSurfaceKHR() failed: %s", VulkanUtils::VulkanResultToString(result));
     }
 
     fullscreen_ = fullscreen;

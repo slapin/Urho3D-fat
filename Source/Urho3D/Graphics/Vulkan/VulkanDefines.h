@@ -22,16 +22,28 @@
 
 #pragma once
 
-#include "VulkanDefines.h"
+/*
+ * Define which window platform Vulkan should use. On linux, there are 4
+ * options. We'll settle for Xlib and XCB for now, but this can be expanded
+ * later.
+ *
+ * As of this writing, apple devices don't support vulkan.
+ */
+#if defined(_WIN32)
+#   define VK_USE_PLATFORM_WIN32_KHR
+#elif defined(__linux__)
+#   if HAVE_X11_XCB
+#       define VK_USE_PLATFORM_XCB_KHR
+#   else
+#       define VK_USE_PLATFORM_XLIB_KHR
+#   endif
+#elif defined(__ANDROID__)
+#   define VK_USE_PLATFORM_ANDROID_KHR
+#else
+#   error Surface extension not available for this platform.
+#endif
 
+// We are loading symbols dynamically, don't need any function prototypes
+#define VK_NO_PROTOTYPES
 
-namespace Urho3D
-{
-
-class VulkanUtils
-{
-public:
-    static const char* VulkanResultToString(VkResult result);
-};
-
-}
+#include <vulkan/vulkan.h>
