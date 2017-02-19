@@ -333,10 +333,15 @@ task :ci do
   # Unshallow the clone's history when necessary
   if ENV['CI'] && ENV['PACKAGE_UPLOAD'] && !ENV['RELEASE_TAG']
     system 'git fetch --unshallow' or abort 'Failed to unshallow cloned repository'
+    puts; $stdout.flush
+  end
+  # CMake/Emscripten toolchain file does not show this information yet
+  if ENV['WEB']
+    system 'clang --version && emcc --version' or abort 'Failed to find Emscripten compiler toolchain'
   end
   # Show CMake version
   system 'cmake --version' or abort 'Failed to find CMake'
-  puts
+  puts; $stdout.flush
   # Using out-of-source build tree when using Travis-CI; 'build_tree' environment variable is already set when on AppVeyor
   ENV['build_tree'] = '../Build' unless ENV['APPVEYOR']
   # Always use a same build configuration to keep ccache's cache size small; single-config generator needs the option when configuring, while multi-config when building
