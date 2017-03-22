@@ -107,7 +107,7 @@ void IKSolver::RegisterObject(Context* context)
     URHO3D_ACCESSOR_ATTRIBUTE("Bone Rotations", BoneRotationsEnabled, EnableBoneRotations, bool, true, AM_DEFAULT);
     URHO3D_ACCESSOR_ATTRIBUTE("Target Rotation", TargetRotationEnabled, EnableTargetRotation, bool, false, AM_DEFAULT);
     URHO3D_ACCESSOR_ATTRIBUTE("Continuous Solving", ContinuousSolvingEnabled, EnableContinuousSolving, bool, false, AM_DEFAULT);
-    URHO3D_ACCESSOR_ATTRIBUTE("Update Pose", UpdatePoseEnabled, EnableUpdatePose, bool, false, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Update Pose", AutoUpdateInitialPoseEnabled, EnableAutoUpdateInitialPose, bool, false, AM_DEFAULT);
     URHO3D_ACCESSOR_ATTRIBUTE("Auto Solve", AutoSolveEnabled, EnableAutoSolve, bool, true, AM_DEFAULT);
 }
 
@@ -130,7 +130,8 @@ void IKSolver::SetAlgorithm(IKSolver::Algorithm algorithm)
         case FABRIK: solver_ = ik_solver_create(SOLVER_FABRIK); break;
     }
 
-    solver_->flags = SOLVER_CALCULATE_FINAL_ROTATIONS;
+    solver_->flags = SOLVER_CALCULATE_FINAL_ROTATIONS |
+                     SOLVER_CALCULATE_CONSTRAINT_ROTATIONS;
 }
 
 // ----------------------------------------------------------------------------
@@ -190,25 +191,23 @@ void IKSolver::EnableTargetRotation(bool enable)
 // ----------------------------------------------------------------------------
 bool IKSolver::ContinuousSolvingEnabled() const
 {
-    return (solver_->flags & SOLVER_SKIP_RESET) != 0;
+    return continuousSolvingEnabled_;
 }
 
 // ----------------------------------------------------------------------------
 void IKSolver::EnableContinuousSolving(bool enable)
 {
-    solver_->flags &= ~SOLVER_SKIP_RESET;
-    if (enable)
-        solver_->flags |= SOLVER_SKIP_RESET;
+    continuousSolvingEnabled_ = enable;
 }
 
 // ----------------------------------------------------------------------------
-bool IKSolver::UpdatePoseEnabled() const
+bool IKSolver::AutoUpdateInitialPoseEnabled() const
 {
     return updateInitialPose_;
 }
 
 // ----------------------------------------------------------------------------
-void IKSolver::EnableUpdatePose(bool enable)
+void IKSolver::EnableAutoUpdateInitialPose(bool enable)
 {
     updateInitialPose_ = enable;
 }
@@ -240,11 +239,17 @@ void IKSolver::EnableAutoSolve(bool enable)
 }
 
 // ----------------------------------------------------------------------------
+static void ApplyConstraintsCallback(ik_node_t* ikNode)
+{
+
+}
 static void ApplySolvedDataCallback(ik_node_t* ikNode)
 {
     Node* node = (Node*)ikNode->user_data;
-    node->SetWorldRotation(QuatIK2Urho(&ikNode->solved_rotation));
-    node->SetWorldPosition(Vec3IK2Urho(&ikNode->solved_position));
+    /*node->SetWorldRotation(QuatIK2Urho(&ikNode->rotation));
+    node->SetWorldPosition(Vec3IK2Urho(&ikNode->position));*/
+    node->SetRotation(QuatIK2Urho(&ikNode->rotation));
+    node->SetPosition(Vec3IK2Urho(&ikNode->position));
 }
 void IKSolver::Solve()
 {
@@ -259,25 +264,32 @@ void IKSolver::Solve()
     if (updateInitialPose_)
         UpdateInitialPose();
 
+    if (continuousSolvingEnabled_ == false)
+        ik_solver_reset_solved_data(solver_);
+
     for (PODVector<IKEffector*>::ConstIterator it = effectorList_.Begin(); it != effectorList_.End(); ++it)
     {
         (*it)->UpdateTargetNodePosition();
     }
 
-    solver_->apply_result = ApplySolvedDataCallback;
+    //solver_->apply_constraints = ApplyConstraintsCallback;
     ik_solver_solve(solver_);
+
+    ik_node_global_to_local(solver_->tree);
+    solver_->iterate_node = ApplySolvedDataCallback;
+    ik_solver_iterate_tree(solver_);
 }
 
 // ----------------------------------------------------------------------------
 static void ApplyInitialDataCallback(ik_node_t* ikNode)
 {
     Node* node = (Node*)ikNode->user_data;
-    node->SetWorldRotation(QuatIK2Urho(&ikNode->rotation));
-    node->SetWorldPosition(Vec3IK2Urho(&ikNode->position));
+    node->SetWorldRotation(QuatIK2Urho(&ikNode->initial_rotation));
+    node->SetWorldPosition(Vec3IK2Urho(&ikNode->initial_position));
 }
 void IKSolver::ResetToInitialPose()
 {
-    solver_->apply_result = ApplyInitialDataCallback;
+    solver_->iterate_node = ApplyInitialDataCallback;
     ik_solver_iterate_tree(solver_);
 }
 
@@ -285,12 +297,12 @@ void IKSolver::ResetToInitialPose()
 static void UpdateInitialPoseCallback(ik_node_t* ikNode)
 {
     Node* node = (Node*)ikNode->user_data;
-    ikNode->rotation = QuatUrho2IK(node->GetWorldRotation());
-    ikNode->position = Vec3Urho2IK(node->GetWorldPosition());
+    ikNode->initial_rotation = QuatUrho2IK(node->GetWorldRotation());
+    ikNode->initial_position = Vec3Urho2IK(node->GetWorldPosition());
 }
 void IKSolver::UpdateInitialPose()
 {
-    solver_->apply_result = UpdateInitialPoseCallback;
+    solver_->iterate_node = UpdateInitialPoseCallback;
     ik_solver_iterate_tree(solver_);
 }
 
@@ -329,8 +341,8 @@ ik_node_t* IKSolver::CreateIKNode(const Node* node)
     ik_node_t* ikNode = ik_node_create(node->GetID());
 
     // Set initial position/rotation and pass in Node* as user data for later
-    ikNode->position = Vec3Urho2IK(node->GetWorldPosition());
-    ikNode->rotation = QuatUrho2IK(node->GetWorldRotation());
+    ikNode->initial_position = Vec3Urho2IK(node->GetWorldPosition());
+    ikNode->initial_rotation = QuatUrho2IK(node->GetWorldRotation());
     ikNode->user_data = (void*)node;
 
     // If the node has a constraint, it needs access to the ikNode
@@ -539,8 +551,8 @@ void IKSolver::DrawDebugGeometry(DebugRenderer* debug, bool depthTest)
         unsigned numberOfSegments = 0;
         while (b && chainLength-- != 0)
         {
-            vec3_t v = a->position;
-            vec3_sub_vec3(v.f, b->position.f);
+            vec3_t v = a->initial_position;
+            vec3_sub_vec3(v.f, b->initial_position.f);
             averageLength += vec3_length(v.f);
             ++numberOfSegments;
             a = b;
@@ -553,36 +565,36 @@ void IKSolver::DrawDebugGeometry(DebugRenderer* debug, bool depthTest)
         a = *pnode;
         b = a->parent;
         debug->AddSphere(
-            Sphere(Vec3IK2Urho(&a->position), averageLength * 0.1f),
+            Sphere(Vec3IK2Urho(&a->initial_position), averageLength * 0.1f),
             Color(0, 0, 255),
             depthTest
         );
         debug->AddSphere(
-            Sphere(Vec3IK2Urho(&a->solved_position), averageLength * 0.1f),
+            Sphere(Vec3IK2Urho(&a->position), averageLength * 0.1f),
             Color(255, 128, 0),
             depthTest
         );
         while (b && chainLength-- != 0)
         {
             debug->AddLine(
-                Vec3IK2Urho(&a->position),
-                Vec3IK2Urho(&b->position),
+                Vec3IK2Urho(&a->initial_position),
+                Vec3IK2Urho(&b->initial_position),
                 Color(0, 255, 255),
                 depthTest
             );
             debug->AddSphere(
-                Sphere(Vec3IK2Urho(&b->position), averageLength * 0.1f),
+                Sphere(Vec3IK2Urho(&b->initial_position), averageLength * 0.1f),
                 Color(0, 0, 255),
                 depthTest
             );
             debug->AddLine(
-                Vec3IK2Urho(&a->solved_position),
-                Vec3IK2Urho(&b->solved_position),
+                Vec3IK2Urho(&a->position),
+                Vec3IK2Urho(&b->position),
                 Color(255, 0, 0),
                 depthTest
             );
             debug->AddSphere(
-                Sphere(Vec3IK2Urho(&b->solved_position), averageLength * 0.1f),
+                Sphere(Vec3IK2Urho(&b->position), averageLength * 0.1f),
                 Color(255, 128, 0),
                 depthTest
             );

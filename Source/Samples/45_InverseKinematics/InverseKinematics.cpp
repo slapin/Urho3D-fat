@@ -148,7 +148,7 @@ void InverseKinematics::CreateScene()
     // use those positions for calculating solutions.
     // With animated characters you generally want to continuously update the
     // initial positions.
-    solver_->EnableUpdatePose(true);
+    solver_->EnableAutoUpdateInitialPose(true);
 
     // Create the camera.
     cameraRotateNode_ = scene_->CreateChild("CameraRotate");

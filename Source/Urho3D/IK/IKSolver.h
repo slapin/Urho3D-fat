@@ -139,7 +139,7 @@ public:
      */
     void EnableTargetRotation(bool enable);
 
-    /// Whether or not continuous solving is enabled or not.
+    /// Whether or not continuous solving is enabled.
     bool ContinuousSolvingEnabled() const;
 
     /*!
@@ -163,8 +163,8 @@ public:
      */
     void EnableContinuousSolving(bool enable);
 
-    /// Whether or not the initial pose is updated for every solution
-    bool UpdatePoseEnabled() const;
+    /// Whether or not the initial pose is updated when calling Solve()
+    bool AutoUpdateInitialPoseEnabled() const;
 
     /*!
      * @brief When enabled, the current Urho3D node positions and rotations in
@@ -177,7 +177,7 @@ public:
      * is set when the solver is first created. You can manually update the
      * initial pose at any time by calling UpdateInitialPose().
      */
-    void EnableUpdatePose(bool enable);
+    void EnableAutoUpdateInitialPose(bool enable);
 
     /// Whether or not the solver should be invoked automatically
     bool AutoSolveEnabled() const;
@@ -247,6 +247,7 @@ private:
     ik_solver_t* solver_;
     Algorithm algorithm_;
     bool solverTreeNeedsRebuild_;
+    bool continuousSolvingEnabled_;
     bool updateInitialPose_;
     bool autoSolveEnabled_;
 };

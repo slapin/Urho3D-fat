@@ -23,8 +23,8 @@ class IKSolver : public Component
     bool ContinuousSolvingEnabled() const;
     void EnableContinuousSolving(bool enable);
 
-    bool UpdatePoseEnabled() const;
-    void EnableUpdatePose(bool enable);
+    bool AutoUpdateInitialPoseEnabled() const;
+    void EnableAutoUpdateInitialPose(bool enable);
 
     bool AutoSolveEnabled() const;
     void EnableAutoSolve(bool enable);

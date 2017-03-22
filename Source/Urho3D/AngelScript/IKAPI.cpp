@@ -50,8 +50,8 @@ static void RegisterIKSolver(asIScriptEngine* engine)
     engine->RegisterObjectMethod("IKSolver", "void set_targetRotation(bool)", asMETHOD(IKSolver, EnableTargetRotation), asCALL_THISCALL);
     engine->RegisterObjectMethod("IKSolver", "bool get_continuousSolving() const", asMETHOD(IKSolver, ContinuousSolvingEnabled), asCALL_THISCALL);
     engine->RegisterObjectMethod("IKSolver", "void set_continuousSolving(bool)", asMETHOD(IKSolver, EnableContinuousSolving), asCALL_THISCALL);
-    engine->RegisterObjectMethod("IKSolver", "bool get_updatePose() const", asMETHOD(IKSolver, UpdatePoseEnabled), asCALL_THISCALL);
-    engine->RegisterObjectMethod("IKSolver", "void set_updatePose(bool)", asMETHOD(IKSolver, EnableUpdatePose), asCALL_THISCALL);
+    engine->RegisterObjectMethod("IKSolver", "bool get_autoUpdateInitialPose() const", asMETHOD(IKSolver, AutoUpdateInitialPoseEnabled), asCALL_THISCALL);
+    engine->RegisterObjectMethod("IKSolver", "void set_autoUpdateInitialPose(bool)", asMETHOD(IKSolver, EnableAutoUpdateInitialPose), asCALL_THISCALL);
     engine->RegisterObjectMethod("IKSolver", "bool get_autoSolve() const", asMETHOD(IKSolver, AutoSolveEnabled), asCALL_THISCALL);
     engine->RegisterObjectMethod("IKSolver", "void set_autoSolve(bool)", asMETHOD(IKSolver, EnableAutoSolve), asCALL_THISCALL);
     engine->RegisterObjectMethod("IKSolver", "void Solve()", asMETHOD(IKSolver, Solve), asCALL_THISCALL);
