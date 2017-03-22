@@ -171,20 +171,20 @@ ik_node_local_to_global(struct ik_node_t* node)
 }
 
 /* ------------------------------------------------------------------------- */
-static void global_to_local_recursive(struct ik_node_t* node, vec3_t acc_pos, quat_t acc_rot)
+static void
+global_to_local_recursive(struct ik_node_t* node, vec3_t acc_pos, quat_t acc_rot)
 {
+    quat_t inv_rotation;
     vec3_sub_vec3(node->position.f, acc_pos.f);
-    /*quat_mul_quat(node->rotation.f, acc_rot.f);*/
+    vec3_add_vec3(acc_pos.f, node->position.f);
+
+    inv_rotation = acc_rot;
+    quat_conj(inv_rotation.f);
+    quat_mul_quat(node->rotation.f, inv_rotation.f);
+    quat_rotate_vec(node->position.f, inv_rotation.f);
+    quat_mul_quat(acc_rot.f, node->rotation.f);
 
     BSTV_FOR_EACH(&node->children, struct ik_node_t, guid, child)
-        vec3_t translation = child->position;
-        quat_t rotation = node->rotation;
-
-        quat_conj(rotation.f);
-        quat_mul_quat(acc_rot.f, rotation.f);
-        vec3_sub_vec3(translation.f, node->position.f);
-        vec3_add_vec3(acc_pos.f, translation.f);
-
         global_to_local_recursive(child, acc_pos, acc_rot);
     BSTV_END_EACH
 }
