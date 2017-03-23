@@ -496,11 +496,11 @@ solver_FABRIK_solve(struct ik_solver_t* solver)
                 calculate_global_rotations(fabrik->chain_tree);
 
             if(solver->flags & SOLVER_CONSTRAINT_SPACE_GLOBAL)
-                solver->apply_constraints(solver->tree);
+                solver->apply_constraints(solver);
             else
             {
                 ik_node_global_to_local(solver->tree);
-                solver->apply_constraints(solver->tree);
+                solver->apply_constraints(solver);
                 ik_node_local_to_global(solver->tree);
             }
         }

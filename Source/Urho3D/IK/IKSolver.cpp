@@ -106,8 +106,9 @@ void IKSolver::RegisterObject(Context* context)
     URHO3D_ACCESSOR_ATTRIBUTE("Convergence Tolerance", GetTolerance, SetTolerance, float, 0.001, AM_DEFAULT);
     URHO3D_ACCESSOR_ATTRIBUTE("Bone Rotations", BoneRotationsEnabled, EnableBoneRotations, bool, true, AM_DEFAULT);
     URHO3D_ACCESSOR_ATTRIBUTE("Target Rotation", TargetRotationEnabled, EnableTargetRotation, bool, false, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Enable Constraints", ConstraintsEnabled, EnableConstraints, bool, false, AM_DEFAULT);
     URHO3D_ACCESSOR_ATTRIBUTE("Continuous Solving", ContinuousSolvingEnabled, EnableContinuousSolving, bool, false, AM_DEFAULT);
-    URHO3D_ACCESSOR_ATTRIBUTE("Update Pose", AutoUpdateInitialPoseEnabled, EnableAutoUpdateInitialPose, bool, false, AM_DEFAULT);
+    URHO3D_ACCESSOR_ATTRIBUTE("Update Initial Pose", AutoUpdateInitialPoseEnabled, EnableAutoUpdateInitialPose, bool, false, AM_DEFAULT);
     URHO3D_ACCESSOR_ATTRIBUTE("Auto Solve", AutoSolveEnabled, EnableAutoSolve, bool, true, AM_DEFAULT);
 }
 
@@ -131,7 +132,11 @@ void IKSolver::SetAlgorithm(IKSolver::Algorithm algorithm)
     }
 
     solver_->flags = SOLVER_CALCULATE_FINAL_ROTATIONS |
-                     SOLVER_CALCULATE_CONSTRAINT_ROTATIONS;
+                     SOLVER_CALCULATE_CONSTRAINT_ROTATIONS |
+                     SOLVER_CONSTRAINT_SPACE_GLOBAL;
+
+    // Need this in the constraints callback
+    solver_->user_data = this;
 }
 
 // ----------------------------------------------------------------------------
@@ -172,6 +177,28 @@ void IKSolver::EnableBoneRotations(bool enable)
     solver_->flags &= ~SOLVER_CALCULATE_FINAL_ROTATIONS;
     if (enable)
         solver_->flags |= SOLVER_CALCULATE_FINAL_ROTATIONS;
+}
+
+// ----------------------------------------------------------------------------
+bool IKSolver::ConstraintsEnabled() const
+{
+    return (solver_->apply_constraints != NULL);
+}
+
+// ----------------------------------------------------------------------------
+static void ApplyConstraintsCallback(ik_solver_t* ikSolver)
+{
+    IKSolver* solver = (IKSolver*)ikSolver->user_data;
+    solver->ApplySolvedPoseToScene();
+    solver->ApplyConstraints(solver->GetNode());
+    solver->ApplySceneToSolvedPose();
+}
+void IKSolver::EnableConstraints(bool enable)
+{
+    if (enable)
+        solver_->apply_constraints = ApplyConstraintsCallback;
+    else
+        solver_->apply_constraints = NULL;
 }
 
 // ----------------------------------------------------------------------------
@@ -239,18 +266,6 @@ void IKSolver::EnableAutoSolve(bool enable)
 }
 
 // ----------------------------------------------------------------------------
-static void ApplyConstraintsCallback(ik_node_t* ikNode)
-{
-
-}
-static void ApplySolvedDataCallback(ik_node_t* ikNode)
-{
-    Node* node = (Node*)ikNode->user_data;
-    /*node->SetWorldRotation(QuatIK2Urho(&ikNode->rotation));
-    node->SetWorldPosition(Vec3IK2Urho(&ikNode->position));*/
-    node->SetRotation(QuatIK2Urho(&ikNode->rotation));
-    node->SetPosition(Vec3IK2Urho(&ikNode->position));
-}
 void IKSolver::Solve()
 {
     URHO3D_PROFILE(IKSolve);
@@ -262,48 +277,77 @@ void IKSolver::Solve()
     }
 
     if (updateInitialPose_)
-        UpdateInitialPose();
+        ApplySceneToInitialPose();
 
     if (continuousSolvingEnabled_ == false)
-        ik_solver_reset_solved_data(solver_);
+        ResetSolvedPoseToInitialPose();
 
     for (PODVector<IKEffector*>::ConstIterator it = effectorList_.Begin(); it != effectorList_.End(); ++it)
     {
         (*it)->UpdateTargetNodePosition();
     }
 
-    //solver_->apply_constraints = ApplyConstraintsCallback;
     ik_solver_solve(solver_);
 
-    ik_node_global_to_local(solver_->tree);
-    solver_->iterate_node = ApplySolvedDataCallback;
-    ik_solver_iterate_tree(solver_);
+    ApplySolvedPoseToScene();
 }
 
 // ----------------------------------------------------------------------------
-static void ApplyInitialDataCallback(ik_node_t* ikNode)
+static void ApplyInitialPoseToSceneCallback(ik_node_t* ikNode)
 {
     Node* node = (Node*)ikNode->user_data;
     node->SetWorldRotation(QuatIK2Urho(&ikNode->initial_rotation));
     node->SetWorldPosition(Vec3IK2Urho(&ikNode->initial_position));
 }
-void IKSolver::ResetToInitialPose()
+void IKSolver::ApplyInitialPoseToScene()
 {
-    solver_->iterate_node = ApplyInitialDataCallback;
+    solver_->iterate_node = ApplyInitialPoseToSceneCallback;
     ik_solver_iterate_tree(solver_);
 }
 
 // ----------------------------------------------------------------------------
-static void UpdateInitialPoseCallback(ik_node_t* ikNode)
+static void ApplySceneToInitialPoseCallback(ik_node_t* ikNode)
 {
     Node* node = (Node*)ikNode->user_data;
     ikNode->initial_rotation = QuatUrho2IK(node->GetWorldRotation());
     ikNode->initial_position = Vec3Urho2IK(node->GetWorldPosition());
 }
-void IKSolver::UpdateInitialPose()
+void IKSolver::ApplySceneToInitialPose()
 {
-    solver_->iterate_node = UpdateInitialPoseCallback;
+    solver_->iterate_node = ApplySceneToInitialPoseCallback;
     ik_solver_iterate_tree(solver_);
+}
+
+// ----------------------------------------------------------------------------
+static void ApplySolvedPoseToSceneCallback(ik_node_t* ikNode)
+{
+    Node* node = (Node*)ikNode->user_data;
+    node->SetWorldRotation(QuatIK2Urho(&ikNode->rotation));
+    node->SetWorldPosition(Vec3IK2Urho(&ikNode->position));
+}
+void IKSolver::ApplySolvedPoseToScene()
+{
+    solver_->iterate_node = ApplySolvedPoseToSceneCallback;
+    ik_solver_iterate_tree(solver_);
+}
+
+// ----------------------------------------------------------------------------
+static void ApplySceneToSolvedPoseCallback(ik_node_t* ikNode)
+{
+    Node* node = (Node*)ikNode->user_data;
+    ikNode->rotation = QuatUrho2IK(node->GetWorldRotation());
+    ikNode->position = Vec3Urho2IK(node->GetWorldPosition());
+}
+void IKSolver::ApplySceneToSolvedPose()
+{
+    solver_->iterate_node = ApplySceneToSolvedPoseCallback;
+    ik_solver_iterate_tree(solver_);
+}
+
+// ----------------------------------------------------------------------------
+void IKSolver::ResetSolvedPoseToInitialPose()
+{
+    ik_solver_reset_solved_data(solver_);
 }
 
 // ----------------------------------------------------------------------------
@@ -328,7 +372,7 @@ void IKSolver::OnSceneSet(Scene* scene)
 // ----------------------------------------------------------------------------
 void IKSolver::OnNodeSet(Node* node)
 {
-    ResetToInitialPose();
+    ApplyInitialPoseToScene();
     DestroyTree();
 
     if (node != NULL)
@@ -348,7 +392,10 @@ ik_node_t* IKSolver::CreateIKNode(const Node* node)
     // If the node has a constraint, it needs access to the ikNode
     IKConstraint* constraint = node->GetComponent<IKConstraint>();
     if (constraint != NULL)
+    {
         constraint->SetIKNode(ikNode);
+        constraintList_.Push(constraint);
+    }
 
     return ikNode;
 }
@@ -412,7 +459,7 @@ void IKSolver::BuildTreeToEffector(const Node* node)
     // it.
     ik_effector_t* ikEffector = ik_effector_create();
     ik_node_attach_effector(ikNode, ikEffector); // ownership of effector
-    effector->SetIKEffector(ikEffector);           // "weak" reference to effector
+    effector->SetIKEffector(ikEffector);         // "weak" reference to effector
     effector->SetIKSolver(this);
     effectorList_.Push(effector);
 
@@ -430,6 +477,17 @@ void IKSolver::HandleComponentAdded(StringHash eventType, VariantMap& eventData)
 
     Node* node = static_cast<Node*>(eventData[P_NODE].GetPtr());
     BuildTreeToEffector(node);
+
+    IKConstraint* constraint = static_cast<IKConstraint*>(node->GetComponent<IKConstraint>());
+    if (constraint != NULL)
+    {
+        ik_node_t* ikNode = ik_node_find_child(solver_->tree, node->GetID());
+        if (ikNode != NULL)
+        {
+            constraint->SetIKNode(ikNode);
+            constraintList_.Push(constraint);
+        }
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -452,7 +510,7 @@ void IKSolver::HandleComponentRemoved(StringHash eventType, VariantMap& eventDat
         effector->SetIKEffector(NULL);
         effectorList_.RemoveSwap(effector);
 
-        ResetToInitialPose();
+        ApplyInitialPoseToScene();
         MarkSolverTreeDirty();
     }
 
@@ -461,6 +519,7 @@ void IKSolver::HandleComponentRemoved(StringHash eventType, VariantMap& eventDat
     {
         IKConstraint* constraint = static_cast<IKConstraint*>(component);
         constraint->SetIKNode(NULL);  // NOTE: Should restore default settings to the node
+        constraintList_.RemoveSwap(constraint);
     }
 }
 
@@ -480,6 +539,12 @@ void IKSolver::HandleNodeAdded(StringHash eventType, VariantMap& eventData)
     {
         BuildTreeToEffector(*it);
         effectorList_.Push((*it)->GetComponent<IKEffector>());
+    }
+
+    node->GetChildrenWithComponent<IKConstraint>(nodes, true);
+    for (PODVector<Node*>::ConstIterator it = nodes.Begin(); it != nodes.End(); ++it)
+    {
+        constraintList_.Push((*it)->GetComponent<IKConstraint>());
     }
 }
 
@@ -503,6 +568,13 @@ void IKSolver::HandleNodeRemoved(StringHash eventType, VariantMap& eventData)
         effectorList_.RemoveSwap(effector);
     }
 
+    node->GetChildrenWithComponent<IKConstraint>(nodes, true);
+    for (PODVector<Node*>::ConstIterator it = nodes.Begin(); it != nodes.End(); ++it)
+    {
+        IKConstraint* constraint = (*it)->GetComponent<IKConstraint>();
+        constraintList_.RemoveSwap(constraint);
+    }
+
     // Special case, if the node being destroyed is the root node, destroy the
     // solver's tree instead of destroying the single node. Calling
     // ik_node_destroy() on the solver's root node will cause segfaults.
@@ -522,6 +594,17 @@ void IKSolver::HandleNodeRemoved(StringHash eventType, VariantMap& eventData)
 void IKSolver::HandleSceneDrawableUpdateFinished(StringHash eventType, VariantMap& eventData)
 {
     Solve();
+}
+
+// ----------------------------------------------------------------------------
+void IKSolver::ApplyConstraints(Node* tree)
+{
+    for (PODVector<IKConstraint*>::ConstIterator it = constraintList_.Begin(); it != constraintList_.End(); ++it)
+    {
+        IKConstraint* constraint = *it;
+        Node* node = constraint->GetNode();
+        node->SetRotation(Quaternion::IDENTITY);
+    }
 }
 
 // ----------------------------------------------------------------------------

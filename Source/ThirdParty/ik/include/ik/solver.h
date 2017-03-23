@@ -17,7 +17,7 @@ typedef int (*ik_solver_rebuild_data_func)(struct ik_solver_t*);
 typedef void (*ik_solver_recalculate_segment_lengths_func)(struct ik_solver_t*);
 typedef int (*ik_solver_solve_func)(struct ik_solver_t*);
 
-typedef void (*ik_solver_apply_constraints_cb_func)(struct ik_node_t*);
+typedef void (*ik_solver_apply_constraints_cb_func)(struct ik_solver_t*);
 typedef void (*ik_solver_iterate_node_cb_func)(struct ik_node_t*);
 
 enum solver_algorithm_e
@@ -62,6 +62,7 @@ enum solver_flags_e
 #define SOLVER_DATA_HEAD                                              \
     ik_solver_apply_constraints_cb_func apply_constraints;            \
     ik_solver_iterate_node_cb_func      iterate_node;                 \
+    void*                               user_data;                    \
                                                                       \
     int32_t                             max_iterations;               \
     float                               tolerance;                    \
