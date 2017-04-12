@@ -310,10 +310,10 @@ solve_chain_forwards(struct chain_t* chain)
         child_node->position = target_position;
 
         /* point segment to previous node and set target position to its end */
-        vec3_sub_vec3(target_position.f, parent_node->position.f); /* parent points to child */
+        vec3_sub_vec3(target_position.f, parent_node->position.f);        /* parent points to child */
         vec3_normalise(target_position.f);                                /* normalise */
         vec3_mul_scalar(target_position.f, -child_node->segment_length);  /* child points to parent */
-        vec3_add_vec3(target_position.f, child_node->position.f);  /* attach to child -- this is the new target */
+        vec3_add_vec3(target_position.f, child_node->position.f);         /* attach to child -- this is the new target */
     }
 
     return target_position;
@@ -344,10 +344,10 @@ solve_chain_backwards(struct chain_t* chain, vec3_t target_position)
         struct ik_node_t* parent_node = *(struct ik_node_t**)ordered_vector_get_element(&chain->nodes, node_idx + 1);
 
         /* point segment to child node and set target position to its beginning */
-        vec3_sub_vec3(target_position.f, child_node->position.f);  /* child points to parent */
+        vec3_sub_vec3(target_position.f, child_node->position.f);         /* child points to parent */
         vec3_normalise(target_position.f);                                /* normalise */
         vec3_mul_scalar(target_position.f, -child_node->segment_length);  /* parent points to child */
-        vec3_add_vec3(target_position.f, parent_node->position.f); /* attach to parent -- this is the new target */
+        vec3_add_vec3(target_position.f, parent_node->position.f);        /* attach to parent -- this is the new target */
 
         /* move node to target */
         child_node->position = target_position;

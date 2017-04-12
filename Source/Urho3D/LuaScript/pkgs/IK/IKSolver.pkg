@@ -45,7 +45,6 @@ class IKSolver : public Component
 
     virtual void ApplyConstraints(Node* tree);
 
-    void MarkSolverTreeDirty();
     void DrawDebugGeometry(bool depthTest);
 
     tolua_property__get_set Algorithm algorithm;
