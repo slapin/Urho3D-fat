@@ -49,6 +49,13 @@ configure_file (include/ik/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/gener
 # Define dependency libs
 set (INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/include/generated include)
 
+# Be more strict with warnings and optimise for fast math
+if (${CMAKE_C_COMPILER_ID} STREQUAL "GNU")
+    add_definitions (-W -Wall -Wextra -Werror -pedantic -Wno-unused-parameter -fno-math-errno -ffast-math)
+elseif (${CMAKE_C_COMPILER_ID} STREQUAL "Clang")
+    add_definitions (-W -Wall -Wextra -Werror -pedantic -Wno-unused-parameter -fno-math-errno -ffast-math)
+endif ()
+
 # Setup target
 setup_library ()
 
