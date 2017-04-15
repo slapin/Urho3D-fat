@@ -46,7 +46,7 @@ static void RegisterIKSolver(asIScriptEngine* engine)
     engine->RegisterObjectMethod("IKSolver", "void set_tolerance(float)", asMETHOD(IKSolver, SetTolerance), asCALL_THISCALL);
     engine->RegisterObjectMethod("IKSolver", "bool get_boneRotations() const", asMETHOD(IKSolver, BoneRotationsEnabled), asCALL_THISCALL);
     engine->RegisterObjectMethod("IKSolver", "void set_boneRotations(bool)", asMETHOD(IKSolver, EnableBoneRotations), asCALL_THISCALL);
-    engine->RegisterObjectMethod("IKSolver", "bool get_constraints() const", asMETHOD(IKSolver, EnableConstraints), asCALL_THISCALL);
+    engine->RegisterObjectMethod("IKSolver", "bool get_constraints() const", asMETHOD(IKSolver, ConstraintsEnabled), asCALL_THISCALL);
     engine->RegisterObjectMethod("IKSolver", "void set_constraints(bool)", asMETHOD(IKSolver, EnableConstraints), asCALL_THISCALL);
     engine->RegisterObjectMethod("IKSolver", "bool get_targetRotation() const", asMETHOD(IKSolver, TargetRotationEnabled), asCALL_THISCALL);
     engine->RegisterObjectMethod("IKSolver", "void set_targetRotation(bool)", asMETHOD(IKSolver, EnableTargetRotation), asCALL_THISCALL);
@@ -87,8 +87,6 @@ static void RegisterIKEffector(asIScriptEngine* engine)
     engine->RegisterObjectMethod("IKEffector", "void set_rotationDecay(float)", asMETHOD(IKEffector, SetRotationDecay), asCALL_THISCALL);
     engine->RegisterObjectMethod("IKEffector", "bool get_weightedNlerp() const", asMETHOD(IKEffector, WeightedNlerpEnabled), asCALL_THISCALL);
     engine->RegisterObjectMethod("IKEffector", "void set_weightedNlerp(bool)", asMETHOD(IKEffector, EnableWeightedNlerp), asCALL_THISCALL);
-    engine->RegisterObjectMethod("IKEffector", "bool get_inheritParentRotation() const", asMETHOD(IKEffector, InheritParentRotationEnabled), asCALL_THISCALL);
-    engine->RegisterObjectMethod("IKEffector", "void set_inheritParentRotation(bool)", asMETHOD(IKEffector, EnableInheritParentRotation), asCALL_THISCALL);
     engine->RegisterObjectMethod("IKEffector", "void DrawDebugGeometry(bool)", asMETHODPR(IKEffector, DrawDebugGeometry, (bool), void), asCALL_THISCALL);
 }
 

@@ -68,7 +68,6 @@ void IKEffector::RegisterObject(Context* context)
     URHO3D_ACCESSOR_ATTRIBUTE("Rotation Weight", GetRotationWeight, SetRotationWeight, float, 1.0, AM_DEFAULT);
     URHO3D_ACCESSOR_ATTRIBUTE("Rotation Decay", GetRotationDecay, SetRotationDecay, float, 0.25, AM_DEFAULT);
     URHO3D_ACCESSOR_ATTRIBUTE("Nlerp Weight", WeightedNlerpEnabled, EnableWeightedNlerp, bool, false, AM_DEFAULT);
-    URHO3D_ACCESSOR_ATTRIBUTE("Inherit Parent Rotation", InheritParentRotationEnabled, EnableInheritParentRotation, bool, false, AM_DEFAULT);
 }
 
 // ----------------------------------------------------------------------------
@@ -225,24 +224,6 @@ void IKEffector::EnableWeightedNlerp(bool enable)
         ikEffector_->flags &= ~EFFECTOR_WEIGHT_NLERP;
         if (enable)
             ikEffector_->flags |= EFFECTOR_WEIGHT_NLERP;
-    }
-}
-
-// ----------------------------------------------------------------------------
-bool IKEffector::InheritParentRotationEnabled() const
-{
-    return inheritParentRotation_;
-}
-
-// ----------------------------------------------------------------------------
-void IKEffector::EnableInheritParentRotation(bool enable)
-{
-    inheritParentRotation_ = enable;
-    if(ikEffector_ != NULL)
-    {
-        ikEffector_->flags &= ~EFFECTOR_INHERIT_PARENT_ROTATION;
-        if (enable)
-            ikEffector_->flags |= EFFECTOR_INHERIT_PARENT_ROTATION;
     }
 }
 
