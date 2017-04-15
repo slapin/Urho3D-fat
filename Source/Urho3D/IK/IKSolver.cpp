@@ -37,6 +37,7 @@
 #include <ik/effector.h>
 #include <ik/node.h>
 #include <ik/solver.h>
+#include <ik/util.h>
 
 namespace Urho3D
 {
@@ -273,6 +274,7 @@ void IKSolver::Solve()
     if (solverTreeNeedsRebuild_)
     {
         ik_solver_rebuild_data(solver_);
+        ik_calculate_rotation_weight_decays(solver_->chain_tree);
         solverTreeNeedsRebuild_ = false;
     }
 

@@ -29,6 +29,8 @@
 #include "../Scene/SceneEvents.h"
 
 #include <ik/effector.h>
+#include <ik/solver.h>
+#include <ik/util.h>
 
 namespace Urho3D
 {
@@ -185,7 +187,10 @@ void IKEffector::SetRotationWeight(float weight)
 {
     rotationWeight_ = Clamp(weight, 0.0f, 1.0f);
     if (ikEffector_ != NULL)
+    {
         ikEffector_->rotation_weight = rotationWeight_;
+        ik_calculate_rotation_weight_decays(solver_->solver_->chain_tree);
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -199,7 +204,10 @@ void IKEffector::SetRotationDecay(float decay)
 {
     rotationDecay_ = Clamp(decay, 0.0f, 1.0f);
     if (ikEffector_ != NULL)
+    {
+        ik_calculate_rotation_weight_decays(solver_->solver_->chain_tree);
         ikEffector_->rotation_decay = rotationDecay_;
+    }
 }
 
 // ----------------------------------------------------------------------------

@@ -24,7 +24,6 @@
  * TODO
  *  - Add support for manually updating initial pose.
  *  - Lua script bindings crash.
- *  - Implement inherit parent rotations in IKEffector.
  *  - Optimise.
  *  - Profile.
  *  - Documentation.
