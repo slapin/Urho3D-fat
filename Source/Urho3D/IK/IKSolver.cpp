@@ -59,6 +59,16 @@ static bool ChildrenHaveEffector(const Node* node)
     return false;
 }
 
+static void ApplyConstraintsCallback(ik_node_t* ikNode)
+{
+    Node* node = (Node*)ikNode->user_data;
+    IKConstraint* constraint = node->GetComponent<IKConstraint>();
+    if (constraint == NULL)
+        return;
+
+    quat_set_identity(ikNode->rotation.f);
+}
+
 // ----------------------------------------------------------------------------
 IKSolver::IKSolver(Context* context) :
     Component(context),
@@ -132,12 +142,8 @@ void IKSolver::SetAlgorithm(IKSolver::Algorithm algorithm)
         case FABRIK: solver_ = ik_solver_create(SOLVER_FABRIK); break;
     }
 
-    solver_->flags = SOLVER_CALCULATE_FINAL_ROTATIONS |
-                     SOLVER_CALCULATE_CONSTRAINT_ROTATIONS |
-                     SOLVER_CONSTRAINT_SPACE_GLOBAL;
-
-    // Need this in the constraints callback
-    solver_->user_data = this;
+    solver_->flags = SOLVER_CALCULATE_FINAL_ROTATIONS;
+    solver_->apply_constraint = ApplyConstraintsCallback;
 }
 
 // ----------------------------------------------------------------------------
@@ -183,23 +189,15 @@ void IKSolver::EnableBoneRotations(bool enable)
 // ----------------------------------------------------------------------------
 bool IKSolver::ConstraintsEnabled() const
 {
-    return (solver_->apply_constraints != NULL);
+    return (solver_->flags & SOLVER_ENABLE_CONSTRAINTS);
 }
 
 // ----------------------------------------------------------------------------
-static void ApplyConstraintsCallback(ik_solver_t* ikSolver)
-{
-    IKSolver* solver = (IKSolver*)ikSolver->user_data;
-    solver->ApplySolvedPoseToScene();
-    solver->ApplyConstraints(solver->GetNode());
-    solver->ApplySceneToSolvedPose();
-}
 void IKSolver::EnableConstraints(bool enable)
 {
+    solver_->flags &= ~SOLVER_ENABLE_CONSTRAINTS;
     if (enable)
-        solver_->apply_constraints = ApplyConstraintsCallback;
-    else
-        solver_->apply_constraints = NULL;
+        solver_->flags |= SOLVER_ENABLE_CONSTRAINTS;
 }
 
 // ----------------------------------------------------------------------------
@@ -303,8 +301,7 @@ static void ApplyInitialPoseToSceneCallback(ik_node_t* ikNode)
 }
 void IKSolver::ApplyInitialPoseToScene()
 {
-    solver_->iterate_node = ApplyInitialPoseToSceneCallback;
-    ik_solver_iterate_tree(solver_);
+    ik_solver_iterate_tree(solver_, ApplyInitialPoseToSceneCallback);
 }
 
 // ----------------------------------------------------------------------------
@@ -316,8 +313,7 @@ static void ApplySceneToInitialPoseCallback(ik_node_t* ikNode)
 }
 void IKSolver::ApplySceneToInitialPose()
 {
-    solver_->iterate_node = ApplySceneToInitialPoseCallback;
-    ik_solver_iterate_tree(solver_);
+    ik_solver_iterate_tree(solver_, ApplySceneToInitialPoseCallback);
 }
 
 // ----------------------------------------------------------------------------
@@ -329,8 +325,7 @@ static void ApplySolvedPoseToSceneCallback(ik_node_t* ikNode)
 }
 void IKSolver::ApplySolvedPoseToScene()
 {
-    solver_->iterate_node = ApplySolvedPoseToSceneCallback;
-    ik_solver_iterate_tree(solver_);
+    ik_solver_iterate_tree(solver_, ApplySolvedPoseToSceneCallback);
 }
 
 // ----------------------------------------------------------------------------
@@ -342,8 +337,7 @@ static void ApplySceneToSolvedPoseCallback(ik_node_t* ikNode)
 }
 void IKSolver::ApplySceneToSolvedPose()
 {
-    solver_->iterate_node = ApplySceneToSolvedPoseCallback;
-    ik_solver_iterate_tree(solver_);
+    ik_solver_iterate_tree(solver_, ApplySceneToSolvedPoseCallback);
 }
 
 // ----------------------------------------------------------------------------
