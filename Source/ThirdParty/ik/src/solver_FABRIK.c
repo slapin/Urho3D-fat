@@ -215,19 +215,40 @@ solve_chain_forwards_with_constraints(struct ik_chain_t* chain, ik_solver_apply_
         vec3_mul_scalar(target_position.f, -child_node->segment_length);  /* child points to parent */
         vec3_add_vec3(target_position.f, child_node->position.f);         /* attach to child -- this is the new target */
 
+        /* Calculate global rotation of parent node */
         segment_original = child_node->initial_position;
-        segment_current  = child_node->position;
+        segment_current  = target_position;
         vec3_sub_vec3(segment_original.f, parent_node->initial_position.f);
-        vec3_sub_vec3(segment_current.f, target_position.f);
+        vec3_sub_vec3(segment_current.f, parent_node->position.f);
         vec3_angle(parent_node->rotation.f, segment_original.f, segment_current.f);
         quat_mul_quat(parent_node->rotation.f, parent_node->initial_rotation.f);
 
-        apply_constraint(parent_node);
-
-        inv_rotation = parent_node->initial_rotation;
-        target_position = child_node->position;
+        /* Convert global transform to local */
+        inv_rotation = accumulated.rotation;
         quat_conj(inv_rotation.f);
         quat_mul_quat(parent_node->rotation.f, inv_rotation.f);
+        vec3_sub_vec3(parent_node->position.f, accumulated.position.f);
+        quat_rotate_vec(parent_node->position.f, inv_rotation.f);
+
+        apply_constraint(parent_node);
+
+        /* Accumulate local rotation and translation for deeper nodes *after*
+         * constraint was applied */
+        accumulated_previous = accumulated;
+        quat_mul_quat(accumulated.rotation.f, parent_node->rotation.f);
+        vec3_add_vec3(accumulated.position.f, parent_node->position.f);
+
+        /* Convert local transform back to global */
+        quat_rotate_vec(parent_node->position.f, accumulated_previous.rotation.f);
+        vec3_add_vec3(parent_node->position.f, accumulated_previous.position.f);
+        quat_mul_quat(parent_node->rotation.f, accumulated_previous.rotation.f);
+
+        /* XXX combine this? */
+        inv_rotation = parent_node->initial_rotation;
+        quat_conj(inv_rotation.f);
+        quat_mul_quat(parent_node->rotation.f, inv_rotation.f);
+
+        target_position = parent_node->position;
         quat_rotate_vec(segment_original.f, parent_node->rotation.f);
         vec3_add_vec3(target_position.f, segment_original.f);
     }
