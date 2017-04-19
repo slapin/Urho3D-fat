@@ -17,7 +17,6 @@ typedef void (*ik_solver_destruct_func)(ik_solver_t*);
 typedef int (*ik_solver_rebuild_data_func)(ik_solver_t*);
 typedef int (*ik_solver_solve_func)(ik_solver_t*);
 
-typedef void (*ik_solver_apply_constraint_cb_func)(ik_node_t*);
 typedef void (*ik_solver_iterate_node_cb_func)(ik_node_t*);
 
 typedef enum solver_algorithm_e
@@ -54,8 +53,6 @@ typedef enum solver_flags_e
  * @brief This is a base for all solvers.
  */
 #define SOLVER_DATA_HEAD                                              \
-    ik_solver_apply_constraint_cb_func  apply_constraint;             \
-                                                                      \
     int32_t                             max_iterations;               \
     float                               tolerance;                    \
     uint8_t                             flags;                        \

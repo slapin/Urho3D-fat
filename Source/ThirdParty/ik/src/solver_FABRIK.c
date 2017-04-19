@@ -1,5 +1,6 @@
 #include "ik/bst_vector.h"
 #include "ik/chain.h"
+#include "ik/constraint.h"
 #include "ik/effector.h"
 #include "ik/log.h"
 #include "ik/memory.h"
@@ -167,7 +168,7 @@ solve_chain_forwards_with_target_rotation(ik_chain_t* chain)
 
 /* ------------------------------------------------------------------------- */
 vec3_t
-solve_chain_forwards_with_constraints(ik_chain_t* chain, ik_solver_apply_constraint_cb_func apply_constraint)
+solve_chain_forwards_with_constraints(ik_chain_t* chain)
 {
     int node_count, node_idx;
     int average_count;
@@ -178,7 +179,7 @@ solve_chain_forwards_with_constraints(ik_chain_t* chain, ik_solver_apply_constra
      */
     average_count = 0;
     ORDERED_VECTOR_FOR_EACH(&chain->children, ik_chain_t, child)
-        vec3_t child_base_position = solve_chain_forwards_with_constraints(child, apply_constraint);
+        vec3_t child_base_position = solve_chain_forwards_with_constraints(child);
         vec3_add_vec3(target_position.f, child_base_position.f);
         ++average_count;
     ORDERED_VECTOR_END_EACH
@@ -220,6 +221,40 @@ solve_chain_forwards_with_constraints(ik_chain_t* chain, ik_solver_apply_constra
         vec3_sub_vec3(segment_original.f, parent_node->initial_position.f);
         vec3_sub_vec3(segment_current.f, target_position.f);
         vec3_angle(parent_node->rotation.f, segment_original.f, segment_current.f);
+        quat_mul_quat(parent_node->rotation.f, parent_node->initial_rotation.f);
+
+        /* Convert global transform to local */
+        inv_rotation = accumulated.rotation;
+        quat_conj(inv_rotation.f);
+        quat_mul_quat(parent_node->rotation.f, inv_rotation.f);
+        vec3_sub_vec3(parent_node->position.f, accumulated.position.f);
+        quat_rotate_vec(parent_node->position.f, inv_rotation.f);
+
+        if (child_node->constraint != NULL)
+            child_node->constraint->apply(parent_node);
+
+        /* Accumulate local rotation and translation for deeper nodes *after*
+         * constraint was applied */
+        accumulated_previous = accumulated;
+        quat_mul_quat(accumulated.rotation.f, parent_node->rotation.f);
+        vec3_add_vec3(accumulated.position.f, parent_node->position.f);
+
+        /* Convert local transform back to global */
+        quat_rotate_vec(parent_node->position.f, accumulated_previous.rotation.f);
+        vec3_add_vec3(parent_node->position.f, accumulated_previous.position.f);
+        quat_mul_quat(parent_node->rotation.f, accumulated_previous.rotation.f);
+
+        if (child_node->constraint != NULL)
+        {
+            /* XXX combine this? */
+            inv_rotation = parent_node->initial_rotation;
+            quat_conj(inv_rotation.f);
+            quat_mul_quat(parent_node->rotation.f, inv_rotation.f);
+
+            target_position = parent_node->position;
+            quat_rotate_vec(segment_original.f, parent_node->rotation.f);
+            vec3_add_vec3(target_position.f, segment_original.f);
+        }
     }
 
     return target_position;
@@ -277,11 +312,10 @@ solve_chain_forwards(ik_chain_t* chain)
 }
 
 /* ------------------------------------------------------------------------- */
-void
+static void
 solve_chain_backwards_with_constraints(ik_chain_t* chain,
                                        vec3_t target_position,
-                                       transform_t accumulated,
-                                       ik_solver_apply_constraint_cb_func apply_constraint)
+                                       vec3_t accumulated_positions)
 {
     int node_idx = ordered_vector_count(&chain->nodes) - 1;
 
@@ -301,12 +335,11 @@ solve_chain_backwards_with_constraints(ik_chain_t* chain,
     while (node_idx-- > 0)
     {
         vec3_t segment_original, segment_current;
-        quat_t inv_rotation;
+        quat_t delta_rotation, inv_delta_rotation;
         transform_t accumulated_previous;
 
         ik_node_t* child_node  = *(ik_node_t**)ordered_vector_get_element(&chain->nodes, node_idx + 0);
         ik_node_t* parent_node = *(ik_node_t**)ordered_vector_get_element(&chain->nodes, node_idx + 1);
-
 
         /* point segment to child node and set target position to its beginning */
         vec3_sub_vec3(target_position.f, child_node->position.f);         /* child points to parent */
@@ -316,49 +349,56 @@ solve_chain_backwards_with_constraints(ik_chain_t* chain,
 
         /* target_position is now where the position of child_node should be. */
 
-        /* Calculate global rotation of parent node */
+        /* Calculate delta rotation of parent node */
         segment_original = child_node->initial_position;
         segment_current  = target_position;
         vec3_sub_vec3(segment_original.f, parent_node->initial_position.f);
         vec3_sub_vec3(segment_current.f, parent_node->position.f);
         vec3_angle(parent_node->rotation.f, segment_original.f, segment_current.f);
+
+        /*
+         * Since the initial rotation is in local space temporarily (see
+         * solve() entry point on why), we now have the rotation in local space
+         */
         quat_mul_quat(parent_node->rotation.f, parent_node->initial_rotation.f);
 
-        /* Convert global transform to local */
-        inv_rotation = accumulated.rotation;
+        /* Convert global translation to local */
+        inv_rotation = accumulated_positions.rotation;
         quat_conj(inv_rotation.f);
-        quat_mul_quat(parent_node->rotation.f, inv_rotation.f);
-        vec3_sub_vec3(parent_node->position.f, accumulated.position.f);
+        vec3_sub_vec3(parent_node->position.f, accumulated_positions.position.f);
         quat_rotate_vec(parent_node->position.f, inv_rotation.f);
 
-        apply_constraint(parent_node);
+        if (child_node->constraint != NULL)
+            child_node->constraint->apply(parent_node);
 
         /* Accumulate local rotation and translation for deeper nodes *after*
          * constraint was applied */
-        accumulated_previous = accumulated;
-        quat_mul_quat(accumulated.rotation.f, parent_node->rotation.f);
-        vec3_add_vec3(accumulated.position.f, parent_node->position.f);
+        accumulated_previous = accumulated_positions;
+        vec3_add_vec3(accumulated_positions.position.f, parent_node->position.f);
 
         /* Convert local transform back to global */
         quat_rotate_vec(parent_node->position.f, accumulated_previous.rotation.f);
         vec3_add_vec3(parent_node->position.f, accumulated_previous.position.f);
         quat_mul_quat(parent_node->rotation.f, accumulated_previous.rotation.f);
 
-        /* XXX combine this? */
-        inv_rotation = parent_node->initial_rotation;
-        quat_conj(inv_rotation.f);
-        quat_mul_quat(parent_node->rotation.f, inv_rotation.f);
+        if (child_node->constraint != NULL)
+        {
+            /* XXX combine this? */
+            inv_rotation = parent_node->initial_rotation;
+            quat_conj(inv_rotation.f);
+            quat_mul_quat(parent_node->rotation.f, inv_rotation.f);
 
-        target_position = parent_node->position;
-        quat_rotate_vec(segment_original.f, parent_node->rotation.f);
-        vec3_add_vec3(target_position.f, segment_original.f);
+            target_position = parent_node->position;
+            quat_rotate_vec(segment_original.f, parent_node->rotation.f);
+            vec3_add_vec3(target_position.f, segment_original.f);
+        }
 
         /* move node to target */
         child_node->position = target_position;
     }
 
     ORDERED_VECTOR_FOR_EACH(&chain->children, ik_chain_t, child)
-        solve_chain_backwards_with_constraints(child, target_position, accumulated, apply_constraint);
+        solve_chain_backwards_with_constraints(child, target_position, accumulated_positions);
     ORDERED_VECTOR_END_EACH
 }
 
@@ -522,6 +562,45 @@ calculate_global_rotations(ik_chain_t* chain)
 }
 
 /* ------------------------------------------------------------------------- */
+static void
+initial_to_global_recursive(ik_node_t* node, quat_t acc_rot)
+{
+    quat_t rotation = node->initial_rotation;
+    quat_mul_quat(node->initial_rotation.f, acc_rot.f);
+    quat_mul_quat(acc_rot.f, rotation.f);
+
+    BSTV_FOR_EACH(&node->children, ik_node_t, guid, child)
+        initial_to_global_recursive(child, acc_rot);
+    BSTV_END_EACH
+}
+void
+initial_rotation_to_global(ik_node_t* node)
+{
+    quat_t acc_rot = {{0, 0, 0, 1}};
+    initial_to_global_recursive(node, acc_rot);
+}
+
+/* ------------------------------------------------------------------------- */
+static void
+initial_to_local_recursive(ik_node_t* node, quat_t acc_rot)
+{
+    quat_t inv_rotation = acc_rot;
+    quat_conj(inv_rotation.f);
+    quat_mul_quat(node->initial_rotation.f, inv_rotation.f);
+    quat_mul_quat(acc_rot.f, node->initial_rotation.f);
+
+    BSTV_FOR_EACH(&node->children, ik_node_t, guid, child)
+        initial_to_local_recursive(child, acc_rot);
+    BSTV_END_EACH
+}
+void
+initial_rotation_to_local(ik_node_t* node)
+{
+    quat_t acc_rot = {{0, 0, 0, 1}};
+    initial_to_local_recursive(node, acc_rot);
+}
+
+/* ------------------------------------------------------------------------- */
 int
 solver_FABRIK_solve(ik_solver_t* solver)
 {
@@ -530,10 +609,27 @@ solver_FABRIK_solve(ik_solver_t* solver)
     int iteration = solver->max_iterations;
     ik_real tolerance_squared = solver->tolerance * solver->tolerance;
 
+    /*
+     * NOTE: Kind of a hack. Initial rotations are in local space during
+     * iteration.
+     *
+     * FABRIK works entirely in global space, so when constraints come into
+     * play, it is necessary to calculate joint angles and convert global
+     * positions into local positions. The constrained angles are the
+     * converted back again into global space.
+     *
+     * As you can imagine, this process is costly. We can actually cut down on
+     * a significant number of operations if the initial rotations are in local
+     * space. The algorithm doesn't need initial rotations, so this should have
+     * no side effects.
+     */
+    if (solver->flags & SOLVER_ENABLE_CONSTRAINTS)
+        initial_rotation_to_local(solver->tree);
+
     while (iteration-- > 0)
     {
         vec3_t root_position;
-        transform_t initial_transform = {{{0, 0, 0}}, {{0, 0, 0, 1}}};
+        vec3_t accumulated_positions = {{0, 0, 0}};
 
         /* Actual algorithm here */
         ORDERED_VECTOR_FOR_EACH(&fabrik->chain_tree->children, ik_chain_t, chain)
@@ -548,7 +644,7 @@ solver_FABRIK_solve(ik_solver_t* solver)
                 solve_chain_forwards(chain);
 
             if (solver->flags & SOLVER_ENABLE_CONSTRAINTS)
-                solve_chain_backwards_with_constraints(chain, root_position, initial_transform, solver->apply_constraint);
+                solve_chain_backwards_with_constraints(chain, root_position, initial_transform);
             else
                 solve_chain_backwards(chain, root_position);
         ORDERED_VECTOR_END_EACH
@@ -564,6 +660,10 @@ solver_FABRIK_solve(ik_solver_t* solver)
             }
         ORDERED_VECTOR_END_EACH
     }
+
+    /* Restore initial rotations to global space again. See above as to why. */
+    if (solver->flags & SOLVER_ENABLE_CONSTRAINTS)
+        initial_rotation_to_global(solver->tree);
 
     if (solver->flags & SOLVER_CALCULATE_FINAL_ROTATIONS)
         calculate_global_rotations(fabrik->chain_tree);

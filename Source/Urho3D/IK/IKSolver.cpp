@@ -143,7 +143,6 @@ void IKSolver::SetAlgorithm(IKSolver::Algorithm algorithm)
     }
 
     solver_->flags = SOLVER_CALCULATE_FINAL_ROTATIONS;
-    solver_->apply_constraint = ApplyConstraintsCallback;
 }
 
 // ----------------------------------------------------------------------------
