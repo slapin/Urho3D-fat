@@ -17,10 +17,10 @@ typedef enum ik_constraint_type_e
     IK_CONSTRAINT_CONE
 } ik_constraint_type_e;
 
-typedef struct ik_constraint_t
+struct ik_constraint_t
 {
     ik_constraint_apply_func apply;
-} ik_constraint_t;
+};
 
 /*!
  * @brief Creates a new constraint object. It can be attached to any node in the

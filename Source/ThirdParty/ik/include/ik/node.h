@@ -75,6 +75,8 @@ typedef struct ik_node_t
      * @brief Global identifier for this node. The identifier must be unique
      * within the tree, but separate trees may re-use the same IDs again. The
      * ID can later be used to retrieve nodes from the tree again.
+     * @note Don't change this if this node has a parent. If you need to change
+     * the guid then unlink the node, change it, and re-add it as a child.
      */
     uint32_t guid;
 
