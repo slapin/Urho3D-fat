@@ -201,7 +201,7 @@ solve_chain_forwards_with_constraints(ik_chain_t* chain)
     node_count = ordered_vector_count(&chain->nodes);
     for (node_idx = 0; node_idx < node_count - 1; ++node_idx)
     {
-        vec3_t segment_original, segment_current;
+        /*vec3_t segment_original, segment_current;*/
 
         ik_node_t* child_node  = *(ik_node_t**)ordered_vector_get_element(&chain->nodes, node_idx + 0);
         ik_node_t* parent_node = *(ik_node_t**)ordered_vector_get_element(&chain->nodes, node_idx + 1);
@@ -334,10 +334,6 @@ solve_chain_backwards_with_constraints(ik_chain_t* chain,
      */
     while (node_idx-- > 0)
     {
-        vec3_t segment_original, segment_current;
-        quat_t delta_rotation, inv_delta_rotation;
-        transform_t accumulated_previous;
-
         ik_node_t* child_node  = *(ik_node_t**)ordered_vector_get_element(&chain->nodes, node_idx + 0);
         ik_node_t* parent_node = *(ik_node_t**)ordered_vector_get_element(&chain->nodes, node_idx + 1);
 
@@ -349,20 +345,20 @@ solve_chain_backwards_with_constraints(ik_chain_t* chain,
 
         /* target_position is now where the position of child_node should be. */
 
-        /* Calculate delta rotation of parent node */
+        /* Calculate delta rotation of parent node *
         segment_original = child_node->initial_position;
         segment_current  = target_position;
         vec3_sub_vec3(segment_original.f, parent_node->initial_position.f);
         vec3_sub_vec3(segment_current.f, parent_node->position.f);
         vec3_angle(parent_node->rotation.f, segment_original.f, segment_current.f);
 
-        /*
+        *
          * Since the initial rotation is in local space temporarily (see
          * solve() entry point on why), we now have the rotation in local space
-         */
+         *
         quat_mul_quat(parent_node->rotation.f, parent_node->initial_rotation.f);
 
-        /* Convert global translation to local *
+        * Convert global translation to local *
         inv_rotation = accumulated_positions.rotation;
         quat_conj(inv_rotation.f);
         vec3_sub_vec3(parent_node->position.f, accumulated_positions.position.f);
@@ -629,7 +625,6 @@ solver_FABRIK_solve(ik_solver_t* solver)
     while (iteration-- > 0)
     {
         vec3_t root_position;
-        vec3_t accumulated_positions = {{0, 0, 0}};
 
         /* Actual algorithm here */
         ORDERED_VECTOR_FOR_EACH(&fabrik->chain_tree->children, ik_chain_t, chain)

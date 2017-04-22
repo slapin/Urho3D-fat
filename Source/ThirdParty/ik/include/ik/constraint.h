@@ -5,9 +5,6 @@
 
 C_HEADER_BEGIN
 
-typedef struct ik_node_t ik_node_t;
-typedef struct ik_constraint_t ik_constraint_t;
-
 typedef void (*ik_constraint_apply_func)(ik_node_t*);
 
 typedef enum ik_constraint_type_e

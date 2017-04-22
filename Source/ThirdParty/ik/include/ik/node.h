@@ -8,13 +8,10 @@
 
 C_HEADER_BEGIN
 
-typedef struct ik_effector_t ik_effector_t;
-typedef struct ik_constraint_t ik_constraint_t;
-
 /*!
  * @brief Represents one node in the tree to be solved.
  */
-typedef struct ik_node_t
+struct ik_node_t
 {
     /*!
      * @brief Allows the user of this library to store custom data per node
@@ -98,7 +95,7 @@ typedef struct ik_node_t
     ik_real segment_length;
     ik_node_t* parent;
     bstv_t children;    /* ik_node_t objects */
-} ik_node_t;
+};
 
 /*!
  * @brief Creates a new node and returns it. Each node requires a tree-unique

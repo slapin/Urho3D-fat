@@ -8,11 +8,6 @@
 
 C_HEADER_BEGIN
 
-typedef struct ik_effector_t ik_effector_t;
-typedef struct ik_node_t ik_node_t;
-typedef struct ik_solver_t ik_solver_t;
-typedef struct ik_chain_t ik_chain_t;
-
 typedef void (*ik_solver_destruct_func)(ik_solver_t*);
 typedef int (*ik_solver_rebuild_data_func)(ik_solver_t*);
 typedef int (*ik_solver_solve_func)(ik_solver_t*);
@@ -66,10 +61,10 @@ typedef enum solver_flags_e
     ik_node_t*                   tree;                                \
     ik_chain_t*                  chain_tree;
 
-typedef struct ik_solver_t
+struct ik_solver_t
 {
     SOLVER_DATA_HEAD
-} ik_solver_t;
+};
 
 /*!
  * @brief Allocates a new solver object according to the specified algorithm.
