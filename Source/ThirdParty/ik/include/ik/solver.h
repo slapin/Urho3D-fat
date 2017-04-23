@@ -16,7 +16,9 @@ typedef void (*ik_solver_iterate_node_cb_func)(ik_node_t*);
 
 typedef enum solver_algorithm_e
 {
-    SOLVER_FABRIK
+    SOLVER_FABRIK,
+    SOLVER_TWO_BONE,
+    SOLVER_ONE_BONE
     /* TODO Not implemented
     SOLVER_JACOBIAN_INVERSE,
     SOLVER_JACOBIAN_TRANSPOSE */

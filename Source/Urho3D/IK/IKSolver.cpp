@@ -73,7 +73,9 @@ static void ApplyConstraintsCallback(ik_node_t* ikNode)
 IKSolver::IKSolver(Context* context) :
     Component(context),
     solver_(NULL),
+    algorithm_(FABRIK),
     solverTreeNeedsRebuild_(false),
+    continuousSolvingEnabled_(false),
     updateInitialPose_(false),
     autoSolveEnabled_(true)
 {
@@ -106,6 +108,8 @@ void IKSolver::RegisterObject(Context* context)
 
     static const char* algorithmNames[] = {
         "FABRIK",
+        "2 Bone Trig",
+        "1 Bone Trig",
         /* not implemented
         "Jacobian Inverse",
         "Jacobian Transpose",*/
@@ -134,15 +138,32 @@ void IKSolver::SetAlgorithm(IKSolver::Algorithm algorithm)
 {
     algorithm_ = algorithm;
 
+    /* We need to rebuild the tree so make sure that the scene is in the
+     * initial pose when this occurs.*/
+    if (node_ != NULL)
+        ApplyInitialPoseToScene();
+
+    // Initial flags for when there is no solver to destroy
+    uint8_t initialFlags = SOLVER_CALCULATE_FINAL_ROTATIONS;
+
+    // Destroys the tree and the solver
     if (solver_ != NULL)
+    {
+        initialFlags = solver_->flags;
         ik_solver_destroy(solver_);
+    }
 
     switch (algorithm_)
     {
-        case FABRIK: solver_ = ik_solver_create(SOLVER_FABRIK); break;
+        case FABRIK   : solver_ = ik_solver_create(SOLVER_FABRIK);   break;
+        case TWO_BONE : solver_ = ik_solver_create(SOLVER_TWO_BONE); break;
+        case ONE_BONE : solver_ = ik_solver_create(SOLVER_ONE_BONE); break;
     }
 
-    solver_->flags = SOLVER_CALCULATE_FINAL_ROTATIONS;
+    solver_->flags = initialFlags;
+
+    if (node_ != NULL)
+        RebuildTree();
 }
 
 // ----------------------------------------------------------------------------
@@ -405,7 +426,7 @@ void IKSolver::DestroyTree()
 // ----------------------------------------------------------------------------
 void IKSolver::RebuildTree()
 {
-    assert(node_ != NULL);
+    assert (node_ != NULL);
 
     ik_node_t* ikRoot = CreateIKNode(node_);
     ik_solver_set_tree(solver_, ikRoot);

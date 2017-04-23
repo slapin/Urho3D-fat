@@ -27,6 +27,7 @@
 #include "../IK/IKEvents.h"
 #include "../IK/IKSolver.h"
 #include "../Scene/SceneEvents.h"
+#include "../IO/Log.h"
 
 #include <ik/effector.h>
 #include <ik/solver.h>
@@ -48,11 +49,13 @@ IKEffector::IKEffector(Context* context) :
     weightedNlerp_(false),
     inheritParentRotation_(false)
 {
+    URHO3D_LOGDEBUG("IKEffector created");
 }
 
 // ----------------------------------------------------------------------------
 IKEffector::~IKEffector()
 {
+    URHO3D_LOGDEBUG("IKEffector destroyed");
 }
 
 // ----------------------------------------------------------------------------

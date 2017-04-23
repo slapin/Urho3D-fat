@@ -47,7 +47,9 @@ public:
 
     enum Algorithm
     {
-        FABRIK
+        FABRIK,
+        TWO_BONE,
+        ONE_BONE
         /* not implemented yet
         JACOBIAN_INVERSE,
         JACOBIAN_TRANSPOSE*/

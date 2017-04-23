@@ -332,7 +332,7 @@ rebuild_chain_tree(ik_solver_t* solver)
     ik_log_message("There are %d effector(s) involving %d node(s). %d chain(s) were created",
                    ordered_vector_count(&solver->effector_nodes_list),
                    involved_nodes_count,
-                   count_chains_exclude_root(solver->chain_tree) - 1); /* don't count root chain which always exists */
+                   count_chains_exclude_root(solver->chain_tree));
 
     bstv_clear_free(&involved_nodes);
 
