@@ -72,6 +72,9 @@ calculate_segment_lengths(ik_chain_t* chain);
 int
 count_chains_exclude_root(ik_chain_t* chain);
 
+void
+calculate_global_rotations(ik_chain_t* chain);
+
 #if IK_DOT_OUTPUT == ON
 /*!
  * @brief Dumps the chain tree to DOT format.
