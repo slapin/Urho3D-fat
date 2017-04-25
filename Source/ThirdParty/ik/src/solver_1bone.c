@@ -36,12 +36,12 @@ solver_1bone_rebuild(ik_solver_t* solver)
     ORDERED_VECTOR_FOR_EACH(&solver->chain_tree->children, ik_chain_t, child)
         if (ordered_vector_count(&child->nodes) != 2) /* 2 nodes = 1 bone */
         {
-            ik_log_message("WARNING: Your tree has chains that are longer than 1 bone. Are you sure you selected the correct solver algorithm?");
+            ik_log_message("ERROR: Your tree has chains that are longer than 1 bone. Are you sure you selected the correct solver algorithm?");
             return -1;
         }
         if (ordered_vector_count(&child->children) > 0)
         {
-            ik_log_message("WARNING: Your tree has child chains. This solver does not support arbitrary trees. You will need to switch to another algorithm (e.g. FABRIK)");
+            ik_log_message("ERROR: Your tree has child chains. This solver does not support arbitrary trees. You will need to switch to another algorithm (e.g. FABRIK)");
             return -1;
         }
     ORDERED_VECTOR_END_EACH
@@ -57,6 +57,7 @@ solver_1bone_solve(ik_solver_t* solver)
         ik_node_t* node_tip;
         ik_node_t* node_base;
 
+        assert(ordered_vector_count(&child->nodes) > 1);
         node_tip = *(ik_node_t**)ordered_vector_get_element(&child->nodes, 0);
         node_base = *(ik_node_t**)ordered_vector_get_element(&child->nodes, 1);
 
