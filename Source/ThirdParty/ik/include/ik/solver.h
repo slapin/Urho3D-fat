@@ -18,7 +18,8 @@ typedef enum solver_algorithm_e
 {
     SOLVER_FABRIK,
     SOLVER_TWO_BONE,
-    SOLVER_ONE_BONE
+    SOLVER_ONE_BONE,
+    SOLVER_MSS_LAPLACE
     /* TODO Not implemented
     SOLVER_JACOBIAN_INVERSE,
     SOLVER_JACOBIAN_TRANSPOSE */
@@ -59,9 +60,10 @@ typedef enum solver_flags_e
     ik_solver_rebuild_data_func         rebuild_data;                 \
     ik_solver_solve_func                solve;                        \
                                                                       \
-    ordered_vector_t             effector_nodes_list;                 \
-    ik_node_t*                   tree;                                \
-    ik_chain_t*                  chain_tree;
+    ordered_vector_t                    effector_nodes_list;          \
+    ik_node_t*                          tree;                         \
+    /* list of ik_chain_tree_t objects (allocated in-place) */        \
+    ordered_vector_t                    chain_trees;
 
 struct ik_solver_t
 {

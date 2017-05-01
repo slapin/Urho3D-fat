@@ -19,6 +19,23 @@ struct ik_chain_t
     ordered_vector_t children;
 };
 
+struct ik_chain_tree_t
+{
+    ik_chain_t       root_chain;
+    /*
+     * List of node_t* objects. This list contains the leaf nodes of IK
+     * effectors, the children of which aren't part of the IK problem but need
+     * to be properly updated to match the new transform of the solved tree.
+     */
+    ordered_vector_t transform_dependent_nodes;
+};
+
+void
+chain_tree_construct(ik_chain_tree* chain_tree);
+
+void
+chain_tree_destruct(ik_chain_tree_t* chain_tree);
+
 ik_chain_t*
 chain_create(void);
 

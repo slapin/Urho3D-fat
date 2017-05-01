@@ -76,7 +76,7 @@ solver_2bone_solve(ik_solver_t* solver)
          *
          *   target *--.__  a
          *           \     --.___ (unknown position, needs solving)
-         *            \     (_-
+         *            \      _-
          *           c \   _-
          *              \-    b
          *            base

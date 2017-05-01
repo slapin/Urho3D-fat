@@ -17,6 +17,22 @@ enum node_marking_e
 };
 
 /* ------------------------------------------------------------------------- */
+void
+chain_tree_construct(ik_chain_tree_t* chain_tree)
+{
+    chain_construct(&chain_tree->root_chain);
+    ordered_vector_construct(&chain_tree->transform_dependent_nodes, sizeof(ik_node_t*));
+}
+
+/* ------------------------------------------------------------------------- */
+void
+chain_tree_destruct(ik_chain_tree_t* chain_tree)
+{
+    ordered_vector_clear_free(&chain_tree->transform_dependent_nodes);
+    chain_destruct(&chain_tree->root_chain);
+}
+
+/* ------------------------------------------------------------------------- */
 ik_chain_t*
 chain_create(void)
 {
@@ -111,6 +127,15 @@ mark_involved_nodes(ik_solver_t* solver, bstv_t* involved_nodes)
          * Mark nodes that are at the base of the chain differently, so the
          * chains can be split correctly later. Section markings will overwrite
          * break markings.
+         *
+         * Additionally, there is a special constraint (IK_CONSTRAINT_STIFF)
+         * that restricts all rotations of a node. If this constraint is
+         * imposed on a particular node, mark it differently as well so the
+         * surrounding nodes can be combined into a single bone properly later.
+         *
+         * NOTE: The node->constraint field specifies constraints for
+         * the *parent* node, not for the current node. However, we will be
+         * marking the *current* node, not the parent node.
          */
         for (; node != NULL; node = node->parent)
         {
@@ -168,7 +193,7 @@ recursively_build_chain_tree(ik_chain_t* chain_current,
             break;
         /*
          * If this node is not marked at all, cut off any previous chain but
-         * continue (fall through) as if (a section was marked. It's possible
+         * continue (fall through) as if a section was marked. It's possible
          * that there are isolated chains somewhere further down the tree.
          */
         case MARK_NONE:
@@ -201,8 +226,8 @@ recursively_build_chain_tree(ik_chain_t* chain_current,
                 chain_construct(child_chain);
 
                 /*
-                 * Add points to all nodes that are part of this chain into the chain's
-                 * list, starting with the end node.
+                 * Add pointers to all nodes that are part of this chain into
+                 * the chain's list, starting with the end node.
                  */
                 for (node = node_current; node != node_base; node = node->parent)
                     ordered_vector_push(&child_chain->nodes, &node);
@@ -241,6 +266,12 @@ rebuild_chain_tree(ik_solver_t* solver)
     static int file_name_counter = 0;
 #endif
 
+    /* Clear all existing chain trees */
+    ORDERED_VECTOR_FOR_EACH(&solver->chain_trees, ik_chain_tree_t, chain_tree)
+        chain_tree_destruct(chain_tree);
+    ORDERED_VECTOR_END_EACH
+    ordered_vector_clear_free(&solver->chain_trees);
+
     /*
      * Build a set of all nodes that are in a direct path with all of the
      * effectors.
@@ -256,7 +287,6 @@ rebuild_chain_tree(ik_solver_t* solver)
      * of the tree is a chain terminator. In this case we need to build the
      * chain tree for each child individually.
      */
-    chain_clear_free(solver->chain_tree);
     if (solver->flags & SOLVER_EXCLUDE_ROOT)
     {
         BSTV_FOR_EACH(&solver->tree->children, ik_node_t, guid, child)
@@ -265,7 +295,7 @@ rebuild_chain_tree(ik_solver_t* solver)
     }
     else
     {
-        recursively_build_chain_tree(solver->chain_tree, solver->tree, solver->tree, &involved_nodes);
+        recursively_build_chain_tree(solver->chain_trees, solver->tree, solver->tree, &involved_nodes);
     }
 
     /* Pre-compute offsets for each node in the chain tree in relation to their
