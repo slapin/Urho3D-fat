@@ -29,8 +29,9 @@ cache:
   directories:
     - $HOME/cmake-3.8.1-Linux-x86_64/bin
     - $HOME/cmake-3.8.1-Linux-x86_64/share
+dist: trusty
 sudo: false
-addons: {apt: {sources: &default_sources george-edison55-precise-backports, packages: &default_packages [doxygen, graphviz]}}
+addons: {apt: {packages: &default_packages [doxygen, graphviz]}}
 env:
   global:
     - secure: SLJCjkjDsTMbCIV9Wecz5JATnhk0fuzlnLMeZdvvFDv+8NL8cXyutkU0VfyRSLf3HSD1Js79a6fRMROyVGWj/w/BRrjqGnZzsB6+ZeJNnadiVIF5Gh+w90We5ccvSp2G4DyYgwkNnkKlJK7zNEWGu/K+bHL1EOCA+EIVrFMyA44=
@@ -47,35 +48,30 @@ matrix:
     - compiler: gcc
   include:
     - &Linux-64bit
-      # Install GCC 6.2.0 which supports C++14 standard
-      addons: {apt: {sources: &gcc_sources [*default_sources, ubuntu-toolchain-r-test], packages: &gcc_packages [g++-6, &linux_packages [*default_packages, libpulse-dev, rpm]]}}
+      addons: {apt: {packages: &linux_packages [*default_packages, libpulse-dev, rpm]}}
       env: LINUX=1 URHO3D_LIB_TYPE=STATIC URHO3D_UPDATE_SOURCE_TREE=1 SF_DEFAULT=linux:Linux-64bit-STATIC.tar.gz
     - <<: *Linux-64bit
       env: LINUX=1 URHO3D_LIB_TYPE=SHARED
     - &Linux-64bit-clang
-      # Default version is 3.4 which already supports C++14 standard
       <<: *Linux-64bit
       compiler: clang
-      addons: {apt: {sources: *default_sources, packages: *linux_packages}}
+      addons: {apt: {packages: *linux_packages}}
       env: LINUX=1 URHO3D_LIB_TYPE=STATIC
     - <<: *Linux-64bit-clang
       env: LINUX=1 URHO3D_LIB_TYPE=SHARED
     - &Linux-32bit
-      addons: {apt: {sources: *gcc_sources, packages: [*gcc_packages, g++-multilib, &X11-32bit ["libxrandr-dev:i386", "libglapi-mesa:i386", "libgl1-mesa-glx:i386", "libgl1-mesa-dev:i386", "libxext-dev:i386", "libxrender-dev:i386", lib32readline6-dev]]}}
+      addons: {apt: {packages: [*linux_packages, g++-multilib, "libxrandr-dev:i386", "libglapi-mesa:i386", "libgl1-mesa-glx:i386", "libgl1-mesa-dev:i386", "libxext-dev:i386", "libxrender-dev:i386", lib32readline6-dev]}}
       env: LINUX=1 URHO3D_LIB_TYPE=STATIC URHO3D_64BIT=0
-    - <<: *Linux-32bit
-      env: LINUX=1 URHO3D_LIB_TYPE=SHARED URHO3D_64BIT=0
-    - &Linux-32bit-clang
+    - &Linux-32bit-shared
       <<: *Linux-32bit
-      compiler: clang
-      addons: {apt: {sources: *default_sources, packages: [*linux_packages, g++-multilib, *X11-32bit]}}
-    - <<: *Linux-32bit-clang
       env: LINUX=1 URHO3D_LIB_TYPE=SHARED URHO3D_64BIT=0
+    - <<: *Linux-32bit
+      compiler: clang
+    - <<: *Linux-32bit-shared
+      compiler: clang
     - &MinGW-64bit
-      # Default version for Trusty (Ubuntu 14.04 LTS) is 4.8.2 which should support C++11 standard
       compiler: mingw
-      dist: trusty
-      addons: {apt: {sources: *default_sources, packages: [*default_packages, gcc-mingw-w64-x86-64, g++-mingw-w64-x86-64, binutils-mingw-w64-x86-64]}}
+      addons: {apt: {packages: [*default_packages, gcc-mingw-w64-x86-64, g++-mingw-w64-x86-64, binutils-mingw-w64-x86-64]}}
       env: WIN32=1 URHO3D_LIB_TYPE=STATIC
     - <<: *MinGW-64bit
       env: WIN32=1 URHO3D_LIB_TYPE=SHARED
@@ -106,7 +102,6 @@ before_script:
   - export PATH=$(whereis -b ccache |grep -o '\S*lib\S*'):$PATH
   - if [[ $LINUX ]]; then
       if [[ "$URHO3D_64BIT" == "0" ]]; then export CMAKE_PREFIX_PATH=/usr/lib/i386-linux-gnu; else if [[ ! $PACKAGE_UPLOAD ]]; then export DISPLAY=:99.0; bash -e /etc/init.d/xvfb start; fi; fi;
-      if [[ "$CC"  == "gcc" ]]; then export CXX=g++-6 CC=gcc-6; fi;
       for compiler in $CXX $CC; do ln -s $(which ccache) $HOME/$compiler; done && export PATH=$HOME:$PATH;
     elif [[ $WIN32 ]]; then
       export MINGW_PREFIX=/usr/bin/x86_64-w64-mingw32;
@@ -196,6 +191,7 @@ cache:
   directories:
     - $HOME/cmake-3.8.1-Linux-x86_64/bin
     - $HOME/cmake-3.8.1-Linux-x86_64/share
+dist: trusty
 sudo: false
 addons:
   apt:
@@ -272,6 +268,7 @@ cache:
 # TODO: Upgrade build tool
 android: {components: [build-tools-22.0.1]}
 jdk: oraclejdk8
+dist: trusty
 sudo: false
 addons: {apt: {sources: &default_sources george-edison55-precise-backports, packages: &default_packages [doxygen, graphviz, g++-multilib]}}
 env:
@@ -328,6 +325,7 @@ cache:
   directories:
     - $HOME/cmake-3.8.1-Linux-x86_64/bin
     - $HOME/cmake-3.8.1-Linux-x86_64/share
+dist: trusty
 sudo: false
 addons: {apt: {sources: george-edison55-precise-backports, packages: [doxygen, graphviz, g++-multilib, rpm]}}
 env:
@@ -373,6 +371,7 @@ cache:
   directories:
     - $HOME/cmake-3.8.1-Linux-x86_64/bin
     - $HOME/cmake-3.8.1-Linux-x86_64/share
+dist: trusty
 sudo: false
 addons: {apt: {sources: &default_sources george-edison55-precise-backports, packages: &default_packages [doxygen, graphviz, g++-multilib, rpm]}}
 env:
@@ -424,13 +423,14 @@ cache:
   directories:
     - $HOME/cmake-3.8.1-Linux-x86_64/bin
     - $HOME/cmake-3.8.1-Linux-x86_64/share
+dist: trusty
 sudo: false
 addons: {apt: {sources: [george-edison55-precise-backports, ubuntu-toolchain-r-test], packages: [doxygen, graphviz, g++-6]}}
 env:
   global:
     - secure: SLJCjkjDsTMbCIV9Wecz5JATnhk0fuzlnLMeZdvvFDv+8NL8cXyutkU0VfyRSLf3HSD1Js79a6fRMROyVGWj/w/BRrjqGnZzsB6+ZeJNnadiVIF5Gh+w90We5ccvSp2G4DyYgwkNnkKlJK7zNEWGu/K+bHL1EOCA+EIVrFMyA44=
     - secure: ecj/PwpbHkH9AYFsc2TMeRuNm5E3xMM8A0x4AcGhzpwDuZWdFx3R1T4G9u45Z5aUyTJWGqOeX1JPaEVVFZuYnNBKRy0kmiUrM9EE0j7WsT57K48tP1ysn2ynyvHgbYkKOfYR0t8XAMWTBbulT9DVVk3DS69//2WgiXGDVUEJTyI=
-    - numjobs=1
+    - numjobs=2
     - WEB=1
     - EMSCRIPTEN_SHARE_DATA=1
     - EMSCRIPTEN_SHARE_JS=1
