@@ -70,7 +70,7 @@ matrix:
     - <<: *Linux-32bit-shared
       compiler: clang
     - &MinGW-64bit
-      compiler: mingw
+      compiler: mingw-w64-x86_64
       addons: {apt: {packages: [*default_packages, gcc-mingw-w64-x86-64, g++-mingw-w64-x86-64, binutils-mingw-w64-x86-64]}}
       env: WIN32=1 URHO3D_LIB_TYPE=STATIC
     - <<: *MinGW-64bit
@@ -80,8 +80,8 @@ matrix:
     - <<: *MinGW-64bit
       env: WIN32=1 URHO3D_LIB_TYPE=SHARED URHO3D_OPENGL=0
     - &MinGW-32bit
-      # MinGW-w64 on Linux is multilib capable
-      <<: *MinGW-64bit
+      compiler: mingw-w64-i686
+      addons: {apt: {packages: [*default_packages, gcc-mingw-w64-i686, g++-mingw-w64-i686, binutils-mingw-w64-i686]}}
       env: WIN32=1 URHO3D_LIB_TYPE=STATIC URHO3D_64BIT=0
     - <<: *MinGW-32bit
       env: WIN32=1 URHO3D_LIB_TYPE=SHARED URHO3D_64BIT=0
@@ -99,14 +99,19 @@ before_script:
   - export TAG=$(git describe --exact-match $TRAVIS_COMMIT 2>/dev/null); if [[ $TAG =~ [[:digit:]]+\.[[:digit:]]+ ]]; then export RELEASE_TAG=$TAG; fi
   # Travis-CI has a special case handling for release tag where it checks out directly from the tag branch instead of the default 'master' branch
   - if [[ $RELEASE_TAG ]] || ([[ "$TRAVIS_BRANCH" == "master" ]] && [[ "$TRAVIS_PULL_REQUEST" == "false" ]]); then if [[ ${TRAVIS_JOB_NUMBER##*.} == 1 ]]; then export SITE_UPDATE=1; fi; if [[ "$CC" == "gcc" ]] && ([[ $RELEASE_TAG ]] || echo $COMMIT_MESSAGE |grep -cq '\[ci package\]'); then export PACKAGE_UPLOAD=1; fi; fi
-  - export PATH=$(whereis -b ccache |grep -o '\S*lib\S*'):$PATH
   - if [[ $LINUX ]]; then
-      if [[ "$URHO3D_64BIT" == "0" ]]; then export CMAKE_PREFIX_PATH=/usr/lib/i386-linux-gnu; else if [[ ! $PACKAGE_UPLOAD ]]; then export DISPLAY=:99.0; bash -e /etc/init.d/xvfb start; fi; fi;
-      for compiler in $CXX $CC; do ln -s $(which ccache) $HOME/$compiler; done && export PATH=$HOME:$PATH;
+      if [[ "$URHO3D_64BIT" == "0" ]]; then
+        export CMAKE_PREFIX_PATH=/usr/lib/i386-linux-gnu;
+      elif [[ ! $PACKAGE_UPLOAD ]]; then
+        export DISPLAY=:99.0; bash -e /etc/init.d/xvfb start;
+      fi;
     elif [[ $WIN32 ]]; then
-      export MINGW_PREFIX=/usr/bin/x86_64-w64-mingw32;
+      if [[ "$URHO3D_64BIT" == "0" ]]; then export ARCH=i686; else export ARCH=x86_64; fi;
+      export MINGW_PREFIX=/usr/bin/${ARCH}-w64-mingw32;
     fi
   - if [[ $URHO3D_BINDINGS ]]; then git clone --depth 1 https://github.com/urho3d/fastcomp-clang.git && export LLVM_CLANG_ROOT=$(pwd)/fastcomp-clang; fi
+  # For some reason clang compiler toolchain installation in Ubuntu does not have symlink in the ccache symlinks directory, so workaround it
+  - if [[ "$CC"  == "clang" ]]; then ln -s $(which ccache) $HOME/clang && ln -s $(which ccache) $HOME/clang++ && export PATH=$HOME:$PATH; fi
   - rake ci_setup_cache
 script: rake ci && if [[ $SITE_UPDATE ]]; then rake ci_site_update; fi && if [[ $PACKAGE_UPLOAD ]]; then rake ci_package_upload && if [[ $LINUX ]] && [[ ! "$URHO3D_64BIT" == "0" ]]; then rake ci_package_upload URHO3D_USE_LIB64_RPM=1; fi; fi && rake ci_timer
 after_script:
@@ -183,7 +188,7 @@ deploy: off
 
 ---
 
-branch: {name: Coverity-Scan, active: no, mandatory: yes}
+branch: {name: Coverity-Scan, active: no}
 language: cpp
 compiler: gcc
 cache:
@@ -195,8 +200,7 @@ dist: trusty
 sudo: false
 addons:
   apt:
-    sources: ubuntu-toolchain-r-test
-    packages: [g++-6, libpulse-dev]
+    packages: libpulse-dev
   coverity_scan:
     project:
       name: urho3d/Urho3D
@@ -220,7 +224,7 @@ before_script:
   - export TRAVIS_COMMIT=$TRAVIS_COMMIT~
   - export COMMIT_MESSAGE=$(git log --format=%B -n 1 $TRAVIS_COMMIT)
   - export PATH=$(whereis -b ccache |grep -o '\S*lib\S*'):$PATH
-  - export PATH=$HOME:$PATH CXX=g++-6 CC=gcc-6; for compiler in $CXX $CC; do ln -s $(which ccache) $HOME/$compiler; done
+  - export PATH=$HOME:$PATH; for compiler in $CXX $CC; do ln -s $(which ccache) $HOME/$compiler; done
   - rake ci_setup_cache
 script: true
 after_script: rake ci_teardown_cache
@@ -235,7 +239,7 @@ cache:
   directories:
     - $HOME/cmake-3.8.1-Linux-x86_64/bin
     - $HOME/cmake-3.8.1-Linux-x86_64/share
-addons: {apt: {sources: ubuntu-toolchain-r-test, packages: [g++-6, libpulse-dev]}}
+addons: {apt: {packages: libpulse-dev}}
 env:
   global:
     - secure: SLJCjkjDsTMbCIV9Wecz5JATnhk0fuzlnLMeZdvvFDv+8NL8cXyutkU0VfyRSLf3HSD1Js79a6fRMROyVGWj/w/BRrjqGnZzsB6+ZeJNnadiVIF5Gh+w90We5ccvSp2G4DyYgwkNnkKlJK7zNEWGu/K+bHL1EOCA+EIVrFMyA44=
@@ -251,7 +255,7 @@ before_script:
   - export COMMIT_MESSAGE=$(git log --format=%B -n 1 $TRAVIS_COMMIT)
   - git clone --depth 1 https://github.com/urho3d/fastcomp-clang.git && export LLVM_CLANG_ROOT=$(pwd)/fastcomp-clang
   - export PATH=$(whereis -b ccache |grep -o '\S*lib\S*'):$PATH
-  - export PATH=$HOME:$PATH CXX=g++-6 CC=gcc-6; for compiler in $CXX $CC; do ln -s $(which ccache) $HOME/$compiler; done
+  - export PATH=$HOME:$PATH; for compiler in $CXX $CC; do ln -s $(which ccache) $HOME/$compiler; done
   - rake ci_setup_cache
 script: rake ci_annotate
 after_script: rake ci_teardown_cache
@@ -265,12 +269,11 @@ cache:
     - $HOME/.ccache
     - $HOME/cmake-3.8.1-Linux-x86_64/bin
     - $HOME/cmake-3.8.1-Linux-x86_64/share
-# TODO: Upgrade build tool
-android: {components: [build-tools-22.0.1]}
+#android: {components: [build-tools-22.0.1]}
 jdk: oraclejdk8
 dist: trusty
 sudo: false
-addons: {apt: {sources: &default_sources george-edison55-precise-backports, packages: &default_packages [doxygen, graphviz, g++-multilib]}}
+addons: {apt: {packages: &default_packages [doxygen, graphviz, g++-multilib]}}
 env:
   global:
     - secure: SLJCjkjDsTMbCIV9Wecz5JATnhk0fuzlnLMeZdvvFDv+8NL8cXyutkU0VfyRSLf3HSD1Js79a6fRMROyVGWj/w/BRrjqGnZzsB6+ZeJNnadiVIF5Gh+w90We5ccvSp2G4DyYgwkNnkKlJK7zNEWGu/K+bHL1EOCA+EIVrFMyA44=
@@ -286,18 +289,16 @@ env:
     # x86 and x86_64 emulation currently requires hardware acceleration which Travis-CI cannot provide, so skip testing using AVD for now
     - ANDROID_ABI=x86_64 ANDROID_TOOLCHAIN_NAME=x86_64-clang URHO3D_LIB_TYPE=STATIC INSTALL=sys-img-x86_64-android-21   # Using default native API level android-21
     - ANDROID_ABI=x86_64 ANDROID_TOOLCHAIN_NAME=x86_64-clang URHO3D_LIB_TYPE=SHARED INSTALL=sys-img-x86_64-android-21
-    - ANDROID_ABI=x86    ANDROID_TOOLCHAIN_NAME=x86-clang URHO3D_LIB_TYPE=STATIC INSTALL=sys-img-x86-android-21 ANDROID_NATIVE_API_LEVEL=android-21  # android-9 is the default but at least android-12 is needed when LuaJIT is enabled
+    - ANDROID_ABI=x86    ANDROID_TOOLCHAIN_NAME=x86-clang URHO3D_LIB_TYPE=STATIC INSTALL=sys-img-x86-android-21 ANDROID_NATIVE_API_LEVEL=android-21   # At least android-12 is needed when LuaJIT is enabled
     - ANDROID_ABI=x86    ANDROID_TOOLCHAIN_NAME=x86-clang URHO3D_LIB_TYPE=SHARED INSTALL=sys-img-x86-android-21 ANDROID_NATIVE_API_LEVEL=android-21
-    - ANDROID_ABI=armeabi-v7a ANDROID_TOOLCHAIN_NAME=arm-linux-androideabi-clang URHO3D_LIB_TYPE=STATIC          # Using default native API Level android-9
+    # ANDROID_ANDROID_ABI=arm64-v8a uses NEON by default, so the following two CI jobs also test NEON code path in the build
+    - ANDROID_ABI=arm64-v8a ANDROID_TOOLCHAIN_NAME=aarch64-linux-android-clang URHO3D_LIB_TYPE=STATIC NO_SDK_SYSIMG=1   # Using default native API level android-21
+    - ANDROID_ABI=arm64-v8a ANDROID_TOOLCHAIN_NAME=aarch64-linux-android-clang URHO3D_LIB_TYPE=SHARED NO_SDK_SYSIMG=1
+    - ANDROID_ABI=armeabi-v7a ANDROID_TOOLCHAIN_NAME=arm-linux-androideabi-clang URHO3D_LIB_TYPE=STATIC                 # Using default native API Level android-9
     - ANDROID_ABI=armeabi-v7a ANDROID_TOOLCHAIN_NAME=arm-linux-androideabi-clang URHO3D_LIB_TYPE=SHARED AVD=21
 matrix:
   fast_finish: true
   include:
-    # ANDROID_ANDROID_ABI=arm64-v8a uses NEON by default, so the following two CI jobs also test NEON code path in the build
-    - addons: &newer_gcc {apt: {sources: [*default_sources, ubuntu-toolchain-r-test], packages: [*default_packages, g++-6]}}
-      env: ANDROID_ABI=arm64-v8a ANDROID_TOOLCHAIN_NAME=aarch64-linux-android-clang URHO3D_LIB_TYPE=STATIC NO_SDK_SYSIMG=1   # Using default native API level android-21
-    - addons: {<<: *newer_gcc}
-      env: ANDROID_ABI=arm64-v8a ANDROID_TOOLCHAIN_NAME=aarch64-linux-android-clang URHO3D_LIB_TYPE=SHARED NO_SDK_SYSIMG=1
 before_script:
   - rake ci_timer
   - if [[ ! -f $HOME/cmake-3.8.1-Linux-x86_64/bin/cmake ]]; then wget --no-check-certificate https://cmake.org/files/v3.8/cmake-3.8.1-Linux-x86_64.tar.gz -O $HOME/cmake.tar.gz && tar xf $HOME/cmake.tar.gz -C $HOME && rm $HOME/cmake.tar.gz; fi
@@ -309,7 +310,7 @@ before_script:
   - git clone --depth 1 --branch strip https://github.com/urho3d/android-ndk.git && export ANDROID_NDK=$(pwd)/android-ndk && if ([[ $AVD ]] || [[ $PACKAGE_UPLOAD ]]) && [[ $INSTALL ]]; then (while :; do echo 'y'; sleep 1; done) |android update sdk --no-ui --all --filter $INSTALL; fi
   - export C_PATH=$(pwd)/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin
   - export PATH=$(whereis -b ccache |grep -o '\S*lib\S*'):$C_PATH:$PATH;
-  - if [[ "$ANDROID_ABI" == "arm64-v8a" ]]; then export PATH=$HOME:$PATH CXX=g++-6 CC=gcc-6; for compiler in $CXX $CC; do ln -s $(which ccache) $HOME/$compiler; done; fi
+  - if [[ "$ANDROID_ABI" == "arm64-v8a" ]]; then export PATH=$HOME:$PATH; for compiler in $CXX $CC; do ln -s $(which ccache) $HOME/$compiler; done; fi
   - for compiler in $C_PATH/{clang,clang++}; do touch -d "2017-01-01 00:00:00 +0800" $compiler; done
   - rake ci_setup_cache
 script: rake ci && if [[ $PACKAGE_UPLOAD ]]; then rake ci_package_upload; fi && rake ci_timer
