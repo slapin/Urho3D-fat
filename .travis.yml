@@ -71,23 +71,27 @@ matrix:
       compiler: clang
     - &MinGW-64bit
       compiler: mingw-w64-x86_64
-      addons: {apt: {packages: [*default_packages, gcc-mingw-w64-x86-64, g++-mingw-w64-x86-64, binutils-mingw-w64-x86-64]}}
+      addons: {apt: {packages: &mingw_x86_64_packages [*default_packages, gcc-mingw-w64-x86-64, g++-mingw-w64-x86-64, binutils-mingw-w64-x86-64]}}
       env: WIN32=1 URHO3D_LIB_TYPE=STATIC
     - <<: *MinGW-64bit
       env: WIN32=1 URHO3D_LIB_TYPE=SHARED
-    - <<: *MinGW-64bit
+    - &MinGW-64bit-D3D9
+      <<: *MinGW-64bit
+      addons: {apt: {packages: [*mingw_x86_64_packages, mingw-w64-x86-64-dev]}}
       env: WIN32=1 URHO3D_LIB_TYPE=STATIC URHO3D_OPENGL=0
-    - <<: *MinGW-64bit
+    - <<: *MinGW-64bit-D3D9
       env: WIN32=1 URHO3D_LIB_TYPE=SHARED URHO3D_OPENGL=0
     - &MinGW-32bit
       compiler: mingw-w64-i686
-      addons: {apt: {packages: [*default_packages, gcc-mingw-w64-i686, g++-mingw-w64-i686, binutils-mingw-w64-i686]}}
+      addons: {apt: {packages: &mingw_i686_packages [*default_packages, gcc-mingw-w64-i686, g++-mingw-w64-i686, binutils-mingw-w64-i686]}}
       env: WIN32=1 URHO3D_LIB_TYPE=STATIC URHO3D_64BIT=0
     - <<: *MinGW-32bit
       env: WIN32=1 URHO3D_LIB_TYPE=SHARED URHO3D_64BIT=0
-    - <<: *MinGW-32bit
+    - &MinGW-32bit-D3D9
+      <<: *MinGW-32bit
+      addons: {apt: {packages: [*mingw_i686_packages, mingw-w64-i686-dev]}}
       env: WIN32=1 URHO3D_LIB_TYPE=STATIC URHO3D_64BIT=0 URHO3D_OPENGL=0
-    - <<: *MinGW-32bit
+    - <<: *MinGW-32bit-D3D9
       env: WIN32=1 URHO3D_LIB_TYPE=SHARED URHO3D_64BIT=0 URHO3D_OPENGL=0
 before_script:
   - rake ci_timer
@@ -223,8 +227,6 @@ before_script:
   - export PATH=$HOME/cmake-3.8.1-Linux-x86_64/bin:$PATH
   - export TRAVIS_COMMIT=$TRAVIS_COMMIT~
   - export COMMIT_MESSAGE=$(git log --format=%B -n 1 $TRAVIS_COMMIT)
-  - export PATH=$(whereis -b ccache |grep -o '\S*lib\S*'):$PATH
-  - export PATH=$HOME:$PATH; for compiler in $CXX $CC; do ln -s $(which ccache) $HOME/$compiler; done
   - rake ci_setup_cache
 script: true
 after_script: rake ci_teardown_cache
@@ -254,8 +256,6 @@ before_script:
   - export TRAVIS_COMMIT=$TRAVIS_COMMIT~
   - export COMMIT_MESSAGE=$(git log --format=%B -n 1 $TRAVIS_COMMIT)
   - git clone --depth 1 https://github.com/urho3d/fastcomp-clang.git && export LLVM_CLANG_ROOT=$(pwd)/fastcomp-clang
-  - export PATH=$(whereis -b ccache |grep -o '\S*lib\S*'):$PATH
-  - export PATH=$HOME:$PATH; for compiler in $CXX $CC; do ln -s $(which ccache) $HOME/$compiler; done
   - rake ci_setup_cache
 script: rake ci_annotate
 after_script: rake ci_teardown_cache
@@ -298,7 +298,6 @@ env:
     - ANDROID_ABI=armeabi-v7a ANDROID_TOOLCHAIN_NAME=arm-linux-androideabi-clang URHO3D_LIB_TYPE=SHARED AVD=21
 matrix:
   fast_finish: true
-  include:
 before_script:
   - rake ci_timer
   - if [[ ! -f $HOME/cmake-3.8.1-Linux-x86_64/bin/cmake ]]; then wget --no-check-certificate https://cmake.org/files/v3.8/cmake-3.8.1-Linux-x86_64.tar.gz -O $HOME/cmake.tar.gz && tar xf $HOME/cmake.tar.gz -C $HOME && rm $HOME/cmake.tar.gz; fi
@@ -309,8 +308,7 @@ before_script:
   - if [[ $RELEASE_TAG ]] || (! [[ $TRAVIS_BRANCH =~ [^-]+-[^-]+-CI ]] && echo $COMMIT_MESSAGE |grep -cq '\[ci package\]'); then export PACKAGE_UPLOAD=1; fi
   - git clone --depth 1 --branch strip https://github.com/urho3d/android-ndk.git && export ANDROID_NDK=$(pwd)/android-ndk && if ([[ $AVD ]] || [[ $PACKAGE_UPLOAD ]]) && [[ $INSTALL ]]; then (while :; do echo 'y'; sleep 1; done) |android update sdk --no-ui --all --filter $INSTALL; fi
   - export C_PATH=$(pwd)/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin
-  - export PATH=$(whereis -b ccache |grep -o '\S*lib\S*'):$C_PATH:$PATH;
-  - if [[ "$ANDROID_ABI" == "arm64-v8a" ]]; then export PATH=$HOME:$PATH; for compiler in $CXX $CC; do ln -s $(which ccache) $HOME/$compiler; done; fi
+  - export PATH=$C_PATH:$PATH
   - for compiler in $C_PATH/{clang,clang++}; do touch -d "2017-01-01 00:00:00 +0800" $compiler; done
   - rake ci_setup_cache
 script: rake ci && if [[ $PACKAGE_UPLOAD ]]; then rake ci_package_upload; fi && rake ci_timer
@@ -328,7 +326,7 @@ cache:
     - $HOME/cmake-3.8.1-Linux-x86_64/share
 dist: trusty
 sudo: false
-addons: {apt: {sources: george-edison55-precise-backports, packages: [doxygen, graphviz, g++-multilib, rpm]}}
+addons: {apt: {packages: [doxygen, graphviz, g++-multilib, rpm]}}
 env:
   global:
     - secure: SLJCjkjDsTMbCIV9Wecz5JATnhk0fuzlnLMeZdvvFDv+8NL8cXyutkU0VfyRSLf3HSD1Js79a6fRMROyVGWj/w/BRrjqGnZzsB6+ZeJNnadiVIF5Gh+w90We5ccvSp2G4DyYgwkNnkKlJK7zNEWGu/K+bHL1EOCA+EIVrFMyA44=
@@ -357,7 +355,7 @@ before_script:
   - export COMMIT_MESSAGE=$(git log --format=%B -n 1 $TRAVIS_COMMIT)
   - export TAG=$(git describe --exact-match $TRAVIS_COMMIT 2>/dev/null); if [[ $TAG =~ [[:digit:]]+\.[[:digit:]]+ ]]; then export RELEASE_TAG=$TAG; fi
   - if [[ $RELEASE_TAG ]] || (! [[ $TRAVIS_BRANCH =~ [^-]+-[^-]+-CI ]] && echo $COMMIT_MESSAGE |grep -cq '\[ci package\]'); then export PACKAGE_UPLOAD=1; fi
-  - export PATH=$(whereis -b ccache |grep -o '\S*lib\S*'):${RPI_PREFIX%/*}:$PATH
+  - export PATH=${RPI_PREFIX%/*}:$PATH
   - rake ci_setup_cache
 script: rake ci && if [[ $PACKAGE_UPLOAD ]]; then rake ci_package_upload; fi && rake ci_timer
 after_script: rake ci_teardown_cache
@@ -374,7 +372,7 @@ cache:
     - $HOME/cmake-3.8.1-Linux-x86_64/share
 dist: trusty
 sudo: false
-addons: {apt: {sources: &default_sources george-edison55-precise-backports, packages: &default_packages [doxygen, graphviz, g++-multilib, rpm]}}
+addons: {apt: {packages: [doxygen, graphviz, g++-multilib, rpm]}}
 env:
   global:
     - secure: SLJCjkjDsTMbCIV9Wecz5JATnhk0fuzlnLMeZdvvFDv+8NL8cXyutkU0VfyRSLf3HSD1Js79a6fRMROyVGWj/w/BRrjqGnZzsB6+ZeJNnadiVIF5Gh+w90We5ccvSp2G4DyYgwkNnkKlJK7zNEWGu/K+bHL1EOCA+EIVrFMyA44=
@@ -389,19 +387,16 @@ env:
     # ODROID-X2
     - SYSROOT=armhf-sysroot URHO3D_LIB_TYPE=STATIC ARM_ABI_FLAGS='-mcpu=cortex-a9 -mfpu=neon-fp16'
     - SYSROOT=armhf-sysroot URHO3D_LIB_TYPE=SHARED ARM_ABI_FLAGS='-mcpu=cortex-a9 -mfpu=neon-fp16'
+    # ODROID-C2
+    - SYSROOT=arm64-sysroot URHO3D_LIB_TYPE=STATIC ARM_ABI_FLAGS='-mcpu=cortex-a53'
+    - SYSROOT=arm64-sysroot URHO3D_LIB_TYPE=SHARED ARM_ABI_FLAGS='-mcpu=cortex-a53'
 matrix:
   fast_finish: true
-  include:
-    # ODROID-C2
-    - addons: &newer_gcc {apt: {sources: [*default_sources, ubuntu-toolchain-r-test], packages: [*default_packages, g++-6]}}
-      env: SYSROOT=arm64-sysroot URHO3D_LIB_TYPE=STATIC ARM_ABI_FLAGS='-mcpu=cortex-a53'
-    - addons: {<<: *newer_gcc}
-      env: SYSROOT=arm64-sysroot URHO3D_LIB_TYPE=SHARED ARM_ABI_FLAGS='-mcpu=cortex-a53'
 before_script:
   - rake ci_timer
   - if [[ ! -f $HOME/cmake-3.8.1-Linux-x86_64/bin/cmake ]]; then wget --no-check-certificate https://cmake.org/files/v3.8/cmake-3.8.1-Linux-x86_64.tar.gz -O $HOME/cmake.tar.gz && tar xf $HOME/cmake.tar.gz -C $HOME && rm $HOME/cmake.tar.gz; fi
   - export PATH=$HOME/cmake-3.8.1-Linux-x86_64/bin:$PATH
-  - if [[ $SYSROOT =~ arm64 ]]; then wget https://releases.linaro.org/components/toolchain/binaries/latest-5/aarch64-linux-gnu/gcc-linaro-5.4.1-2017.01-x86_64_aarch64-linux-gnu.tar.xz -O arm-tools.tar.xz && tar xf arm-tools.tar.xz && rm arm-tools.tar.xz && mv gcc-linaro* gcc-linaro && export ARM_PREFIX=$(pwd)/gcc-linaro/bin/aarch64-linux-gnu PATH=$HOME:$PATH CXX=g++-6 CC=gcc-6 && for compiler in $CXX $CC; do ln -s $(which ccache) $HOME/$compiler; done; fi
+  - if [[ $SYSROOT =~ arm64 ]]; then wget https://releases.linaro.org/components/toolchain/binaries/latest-5/aarch64-linux-gnu/gcc-linaro-5.4.1-2017.01-x86_64_aarch64-linux-gnu.tar.xz -O arm-tools.tar.xz && tar xf arm-tools.tar.xz && rm arm-tools.tar.xz && mv gcc-linaro* gcc-linaro && export ARM_PREFIX=$(pwd)/gcc-linaro/bin/aarch64-linux-gnu; fi
   - if [[ $SYSROOT =~ armhf ]]; then wget https://releases.linaro.org/components/toolchain/binaries/latest-5/arm-linux-gnueabihf/gcc-linaro-5.4.1-2017.01-x86_64_arm-linux-gnueabihf.tar.xz -O arm-tools.tar.xz && tar xf arm-tools.tar.xz && rm arm-tools.tar.xz && mv gcc-linaro* gcc-linaro && export ARM_PREFIX=$(pwd)/gcc-linaro/bin/arm-linux-gnueabihf; fi
   - for compiler in $ARM_PREFIX-{gcc,g++}; do touch -d "2017-01-01 00:00:00 +0800" $compiler; done
   - git clone --depth 1 https://github.com/urho3d/$SYSROOT.git && export ARM_SYSROOT=$(pwd)/$SYSROOT
@@ -409,7 +404,7 @@ before_script:
   - export COMMIT_MESSAGE=$(git log --format=%B -n 1 $TRAVIS_COMMIT)
   - export TAG=$(git describe --exact-match $TRAVIS_COMMIT 2>/dev/null); if [[ $TAG =~ [[:digit:]]+\.[[:digit:]]+ ]]; then export RELEASE_TAG=$TAG; fi
   - if [[ $RELEASE_TAG ]] || (! [[ $TRAVIS_BRANCH =~ [^-]+-[^-]+-CI ]] && echo $COMMIT_MESSAGE |grep -cq '\[ci package\]'); then export PACKAGE_UPLOAD=1; fi
-  - export PATH=$(whereis -b ccache |grep -o '\S*lib\S*'):${ARM_PREFIX%/*}:$PATH
+  - export PATH=${ARM_PREFIX%/*}:$PATH
   - rake ci_setup_cache
 script: rake ci && if [[ $PACKAGE_UPLOAD ]]; then rake ci_package_upload && if [[ "$SYSROOT" == "arm64-sysroot" ]]; then rake ci_package_upload URHO3D_USE_LIB64_RPM=1; fi; fi && rake ci_timer
 after_script: rake ci_teardown_cache
@@ -426,7 +421,7 @@ cache:
     - $HOME/cmake-3.8.1-Linux-x86_64/share
 dist: trusty
 sudo: false
-addons: {apt: {sources: [george-edison55-precise-backports, ubuntu-toolchain-r-test], packages: [doxygen, graphviz, g++-6]}}
+addons: {apt: {packages: [doxygen, graphviz]}}
 env:
   global:
     - secure: SLJCjkjDsTMbCIV9Wecz5JATnhk0fuzlnLMeZdvvFDv+8NL8cXyutkU0VfyRSLf3HSD1Js79a6fRMROyVGWj/w/BRrjqGnZzsB6+ZeJNnadiVIF5Gh+w90We5ccvSp2G4DyYgwkNnkKlJK7zNEWGu/K+bHL1EOCA+EIVrFMyA44=
@@ -458,7 +453,7 @@ before_script:
   - if [[ $RELEASE_TAG ]] || (! [[ $TRAVIS_BRANCH =~ [^-]+-[^-]+-CI ]] && echo $COMMIT_MESSAGE |grep -cq '\[ci package\]'); then export PACKAGE_UPLOAD=1; fi
   - if [[ $EMSCRIPTEN_WASM ]]; then export BINARYEN=binaryen-master-64bit; fi
   - git clone --depth 1 --branch $BRANCH https://github.com/urho3d/emscripten-sdk.git && emscripten-sdk/emsdk activate --build=Release sdk-${BRANCH}-64bit $BINARYEN && source emscripten-sdk/emsdk_env.sh
-  - export PATH=$(whereis -b ccache |grep -o '\S*lib\S*'):$PATH; for f in $EMSCRIPTEN/{emcc,em++}; do touch -d "2015-09-01 00:00:00 +0800" $f; done
+  - for compiler in $EMSCRIPTEN/{emcc,em++}; do touch -d "2017-01-01 00:00:00 +0800" $compiler; done
   - rake ci_setup_cache
 script: rake ci && if [[ "$TRAVIS_BRANCH" == "Web-CI" ]] && [[ ! $EMSCRIPTEN_WASM ]] && [[ "$TRAVIS_PULL_REQUEST" == "false" ]] && [[ "$URHO3D_LIB_TYPE" == "SHARED" ]]; then rake ci_emscripten_samples_update; fi && if [ $PACKAGE_UPLOAD ]; then rake ci_package_upload; fi && rake ci_timer
 after_script: rake ci_teardown_cache
