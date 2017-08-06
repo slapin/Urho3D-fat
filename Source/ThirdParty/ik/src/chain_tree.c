@@ -37,14 +37,12 @@ void
 chain_island_construct(chain_island_t* chain_tree)
 {
     chain_construct(&chain_tree->root_chain);
-    ordered_vector_construct(&chain_tree->transform_dependent_nodes, sizeof(ik_node_t*));
 }
 
 /* ------------------------------------------------------------------------- */
 void
 chain_island_destruct(chain_island_t* chain_tree)
 {
-    ordered_vector_clear_free(&chain_tree->transform_dependent_nodes);
     chain_destruct(&chain_tree->root_chain);
 }
 

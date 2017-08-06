@@ -28,14 +28,6 @@ struct chain_t
 struct chain_island_t
 {
     chain_t       root_chain;
-
-    /*
-     * List of ik_node_t* objects. This list contains the child nodes of IK
-     * effectors, the children of which aren't part of the IK problem but need
-     * to be properly updated to match the new transform of the solved tree.
-     * TODO Is this implemented yet?
-     */
-    ordered_vector_t transform_dependent_nodes;
 };
 
 struct chain_tree_t
@@ -73,7 +65,6 @@ chain_construct(chain_t* chain);
  */
 void
 chain_destruct(chain_t* chain);
-
 
 /*!
  * @brief Clears all children and nodes.
