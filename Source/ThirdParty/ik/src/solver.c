@@ -112,18 +112,18 @@ ik_solver_destroy(ik_solver_t* solver)
 
 /* ------------------------------------------------------------------------- */
 void
-ik_solver_set_tree(ik_solver_t* solver, ik_node_t* root)
+ik_solver_set_tree(ik_solver_t* solver, ik_node_t* base)
 {
     ik_solver_destroy_tree(solver);
-    solver->tree = root;
+    solver->tree = base;
 }
 
 /* ------------------------------------------------------------------------- */
 ik_node_t*
 ik_solver_unlink_tree(ik_solver_t* solver)
 {
-    ik_node_t* root = solver->tree;
-    if (root == NULL)
+    ik_node_t* base = solver->tree;
+    if (base == NULL)
         return NULL;
     solver->tree = NULL;
 
@@ -133,17 +133,17 @@ ik_solver_unlink_tree(ik_solver_t* solver)
      */
     ordered_vector_clear(&solver->effector_nodes_list);
 
-    return root;
+    return base;
 }
 
 /* ------------------------------------------------------------------------- */
 void
 ik_solver_destroy_tree(ik_solver_t* solver)
 {
-    ik_node_t* root;
-    if ((root = ik_solver_unlink_tree(solver)) == NULL)
+    ik_node_t* base;
+    if ((base = ik_solver_unlink_tree(solver)) == NULL)
         return;
-    ik_node_destroy(root);
+    ik_node_destroy(base);
 }
 
 /* ------------------------------------------------------------------------- */
@@ -190,7 +190,23 @@ ik_solver_recalculate_segment_lengths(ik_solver_t* solver)
 int
 ik_solver_solve(ik_solver_t* solver)
 {
-    return solver->solve(solver);
+    int result;
+
+    /*
+     * All solvers work entirely, so we need to transform the tree first,
+     * solve, then transform it back to local space. The algorithm requires
+     * both the original and the active pose in local space.
+     */
+    ik_node_local_to_global(solver->tree, NODE_ORIGINAL | NODE_ACTIVE);
+
+    if ((result = solver->solve(solver)) < 0)
+        goto stop_and_return;
+
+    if (solver->flags & SOLVER_CALCULATE_JOINT_ROTATIONS)
+        ik_solver_calculate_joint_rotations(solver);
+
+    stop_and_return: ik_node_global_to_local(solver->tree, NODE_ORIGINAL | NODE_ACTIVE);
+    return result;
 }
 
 /* ------------------------------------------------------------------------- */
@@ -198,7 +214,7 @@ void
 ik_solver_calculate_joint_rotations(ik_solver_t* solver)
 {
     ORDERED_VECTOR_FOR_EACH(&solver->chain_tree.islands, chain_island_t, island)
-        calculate_global_rotations(&island->root_chain);
+        calculate_global_rotations(&island->base_chain);
     ORDERED_VECTOR_END_EACH
 }
 
@@ -237,7 +253,7 @@ iterate_chain_tree_recursive(chain_t* chain,
      * callback multiple times. The base node is shared by the parent chain's
      * effector as well as with other chains in the same depth.
      */
-    int idx = ordered_vector_count(&chain->nodes);
+    int idx = ordered_vector_count(&chain->nodes) - 1;
     assert(idx > 0); // chains must have at least 2 nodes in them
     while (idx--)
     {
@@ -248,19 +264,26 @@ iterate_chain_tree_recursive(chain_t* chain,
         iterate_chain_tree_recursive(child, callback);
     ORDERED_VECTOR_END_EACH
 }
-void ik_solver_iterate_chain_tree(ik_solver_t* solver,
-                                  ik_solver_iterate_node_cb_func callback)
+void
+ik_solver_iterate_chain_tree(ik_solver_t* solver,
+                             ik_solver_iterate_node_cb_func callback)
 {
     ORDERED_VECTOR_FOR_EACH(&solver->chain_tree.islands, chain_island_t, island)
-        /*
-         * The root node is excluded by the recursive function, so we must
-         * do the callback here
-         */
-        int idx = ordered_vector_count(&island->root_chain.nodes) - 1;
-        ik_node_t* root = *(ik_node_t**)ordered_vector_get_element(&island->root_chain.nodes, idx);
-        callback(root);
+        iterate_chain_tree_recursive(&island->base_chain, callback);
+    ORDERED_VECTOR_END_EACH
+}
 
-        iterate_chain_tree_recursive(&island->root_chain, callback);
+/* ------------------------------------------------------------------------- */
+void
+ik_solver_iterate_base_nodes(ik_solver_t* solver,
+                             ik_solver_iterate_node_cb_func callback)
+{
+    ORDERED_VECTOR_FOR_EACH(&solver->chain_tree.islands, chain_island_t, island)
+        int idx = ordered_vector_count(&island->base_chain.nodes) - 1;
+        assert(idx > 0); /* chains should have at least 2 nodes */
+        ik_node_t* base_node =
+            *(ik_node_t**)ordered_vector_get_element(&island->base_chain.nodes, idx);
+        callback(base_node);
     ORDERED_VECTOR_END_EACH
 }
 

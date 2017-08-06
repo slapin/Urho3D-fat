@@ -35,12 +35,12 @@ solver_1bone_post_chain_build(ik_solver_t* solver)
      * sub chains.
      */
     ORDERED_VECTOR_FOR_EACH(&solver->chain_tree.islands, chain_island_t, island)
-        if (ordered_vector_count(&island->root_chain.nodes) != 2) /* 2 nodes = 1 bone */
+        if (ordered_vector_count(&island->base_chain.nodes) != 2) /* 2 nodes = 1 bone */
         {
             ik_log_message("ERROR: Your tree has chains that are longer than 1 bone. Are you sure you selected the correct solver algorithm?");
             return -1;
         }
-        if (ordered_vector_count(&island->root_chain.children) > 0)
+        if (ordered_vector_count(&island->base_chain.children) > 0)
         {
             ik_log_message("ERROR: Your tree has child chains. This solver does not support arbitrary trees. You will need to switch to another algorithm (e.g. FABRIK)");
             return -1;
@@ -59,11 +59,11 @@ solver_1bone_solve(ik_solver_t* solver)
     ORDERED_VECTOR_FOR_EACH(&solver->chain_tree.islands, chain_island_t, island)
         ik_node_t* node_tip;
         ik_node_t* node_base;
-        chain_t* root_chain = &island->root_chain;
+        chain_t* base_chain = &island->base_chain;
 
-        assert(ordered_vector_count(&root_chain->nodes) > 1);
-        node_tip = *(ik_node_t**)ordered_vector_get_element(&root_chain->nodes, 0);
-        node_base = *(ik_node_t**)ordered_vector_get_element(&root_chain->nodes, 1);
+        assert(ordered_vector_count(&base_chain->nodes) > 1);
+        node_tip = *(ik_node_t**)ordered_vector_get_element(&base_chain->nodes, 0);
+        node_base = *(ik_node_t**)ordered_vector_get_element(&base_chain->nodes, 1);
 
         assert(node_tip->effector != NULL);
         node_tip->position = node_tip->effector->target_position;

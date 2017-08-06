@@ -29,15 +29,17 @@ typedef enum solver_algorithm_e
 typedef enum solver_flags_e
 {
     /*!
-     * @brief Causes the root node in the tree to be excluded from the list of
+     * @brief Causes the base node in the tree to be excluded from the list of
      * nodes to solve for. It won't be affected by the solver, but it may still
      * be passed through to the result callback function.
      */
-    SOLVER_EXCLUDE_ROOT                   = 0x01,
+    SOLVER_EXCLUDE_BASE                   = 0x01,
 
     SOLVER_ENABLE_CONSTRAINTS             = 0x02,
 
-    SOLVER_CALCULATE_TARGET_ROTATIONS     = 0x04
+    SOLVER_CALCULATE_TARGET_ROTATIONS     = 0x04,
+
+    SOLVER_CALCULATE_JOINT_ROTATIONS      = 0x08
 } solver_flags_e;
 
 /*!
@@ -123,11 +125,11 @@ ik_solver_destroy(ik_solver_t* solver);
  * solver already has a tree, then said tree will be destroyed.
  */
 IK_PUBLIC_API void
-ik_solver_set_tree(ik_solver_t* solver, ik_node_t* root);
+ik_solver_set_tree(ik_solver_t* solver, ik_node_t* base);
 
 /*!
  * @brief The solver releases any references to a previously set tree and
- * returns the root node of said tree. Any proceeding calls that involve the
+ * returns the base node of said tree. Any proceeding calls that involve the
  * tree (e.g. solve or rebuild) will have no effect until a new tree is set.
  * @return If the solver has no tree then NULL is returned.
  */
@@ -175,6 +177,8 @@ ik_solver_recalculate_segment_lengths(ik_solver_t* solver);
  * @brief Solves the IK problem. The node solutions will be provided via a
  * callback function, which can be registered to the solver by assigning it to
  * solver->apply_result.
+ * @return The return value should be 1 if the result converged. 0 if any of
+ * the end effectors didn't converge. -1 if there was an error.
  */
 IK_PUBLIC_API int
 ik_solver_solve(ik_solver_t* solver);
@@ -191,11 +195,34 @@ ik_solver_iterate_tree(ik_solver_t* solver,
                        ik_solver_iterate_node_cb_func callback);
 
 /*!
- * @brief Iterates just the nodes that are being affected by the solver. Useful
- * for a more optimized write-back of the solution data.
+ * @brief Iterates just the nodes that are being affected by the solver,
+ * *EXCLUDING* the island base nodes.
+ *
+ * @note Requires a rebuild before this data is valid.
+ *
+ * The reason for excluding island base nodes is because their positions and
+ * rotations are typically set separately from the rest of the tree (see
+ * ik_solver_iterate_base_nodes).
  */
 IK_PUBLIC_API void
 ik_solver_iterate_chain_tree(ik_solver_t* solver,
+                             ik_solver_iterate_node_cb_func callback);
+
+/*!
+ * @brief Iterates all nodes that mark the beginning of a subtree.
+ *
+ * In a lot of cases, the scene graph of a user library is only partially
+ * replicated for solving. Because of this, the base nodes of all of the chains
+ * in the tree won't be affected by a potential parent node if it is moved or
+ * rotated, since the ik library doesn't know about any parent nodes -- It
+ * believes the base nodes ARE the parent-most nodes in the tree.
+ *
+ * To overcome this, you can iterate all of these base nodes and copy the
+ * *global* (world) position/rotation into each base node position/rotation.
+ * This will correctly position/rotate the solver's chains.
+ */
+IK_PUBLIC_API void
+ik_solver_iterate_base_nodes(ik_solver_t* solver,
                              ik_solver_iterate_node_cb_func callback);
 
 /*!

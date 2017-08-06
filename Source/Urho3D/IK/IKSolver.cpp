@@ -49,7 +49,7 @@ IKSolver::IKSolver(Context* context) :
     Component(context),
     solver_(NULL),
     algorithm_(FABRIK),
-    features_(AUTO_SOLVE | JOINT_ROTATIONS | UPDATE_ACTIVE_POSE),
+    features_(JOINT_ROTATIONS | UPDATE_ACTIVE_POSE | AUTO_SOLVE),
     chainTreesNeedUpdating_(false),
     treeNeedsRebuild(true),
     solverTreeValid_(false)
@@ -121,7 +121,7 @@ void IKSolver::SetAlgorithm(IKSolver::Algorithm algorithm)
         ApplyOriginalPoseToScene();
 
     // Initial flags for when there is no solver to destroy
-    uint8_t initialFlags = 0;
+    uint8_t initialFlags = SOLVER_CALCULATE_JOINT_ROTATIONS;
 
     // Destroys the tree and the solver
     if (solver_ != NULL)
@@ -156,11 +156,11 @@ void IKSolver::SetFeature(Feature feature, bool enable)
 {
     switch (feature)
     {
-        case CONSTRAINTS:
+        case JOINT_ROTATIONS:
         {
-            solver_->flags &= ~SOLVER_ENABLE_CONSTRAINTS;
+            solver_->flags &= ~SOLVER_CALCULATE_JOINT_ROTATIONS;
             if (enable)
-                solver_->flags |= SOLVER_ENABLE_CONSTRAINTS;
+                solver_->flags |= SOLVER_CALCULATE_JOINT_ROTATIONS;
         } break;
 
         case TARGET_ROTATIONS:
@@ -168,6 +168,13 @@ void IKSolver::SetFeature(Feature feature, bool enable)
             solver_->flags &= ~SOLVER_CALCULATE_TARGET_ROTATIONS;
             if (enable)
                 solver_->flags |= SOLVER_CALCULATE_TARGET_ROTATIONS;
+        } break;
+
+        case CONSTRAINTS:
+        {
+            solver_->flags &= ~SOLVER_ENABLE_CONSTRAINTS;
+            if (enable)
+                solver_->flags |= SOLVER_ENABLE_CONSTRAINTS;
         } break;
 
         case AUTO_SOLVE:
@@ -181,7 +188,10 @@ void IKSolver::SetFeature(Feature feature, bool enable)
                 UnsubscribeFromEvent(GetScene(), E_SCENEDRAWABLEUPDATEFINISHED);
         } break;
 
-        default: break;
+        case UPDATE_ORIGINAL_POSE:
+        case UPDATE_ACTIVE_POSE:
+        case USE_ORIGINAL_POSE:
+            break;
     }
 
     features_ &= ~feature;
@@ -428,9 +438,6 @@ void IKSolver::Solve()
 
     ik_solver_solve(solver_);
 
-    if (features_ & JOINT_ROTATIONS)
-        ik_solver_calculate_joint_rotations(solver_);
-
     ApplyActivePoseToScene();
 }
 
@@ -459,6 +466,12 @@ void IKSolver::ApplySceneToOriginalPose()
 }
 
 // ----------------------------------------------------------------------------
+static void ApplyBaseNodesToSceneCallback(ik_node_t* ikNode)
+{
+    Node* node = (Node*)ikNode->user_data;
+    node->SetWorldRotation(QuatIK2Urho(&ikNode->rotation));
+    node->SetWorldPosition(Vec3IK2Urho(&ikNode->position));
+}
 static void ApplyActivePoseToSceneCallback(ik_node_t* ikNode)
 {
     Node* node = (Node*)ikNode->user_data;
@@ -467,10 +480,17 @@ static void ApplyActivePoseToSceneCallback(ik_node_t* ikNode)
 }
 void IKSolver::ApplyActivePoseToScene()
 {
-    ik_solver_iterate_tree(solver_, ApplyActivePoseToSceneCallback);
+    ik_solver_iterate_base_nodes(solver_, ApplyBaseNodesToSceneCallback);
+    ik_solver_iterate_chain_tree(solver_, ApplyActivePoseToSceneCallback);
 }
 
 // ----------------------------------------------------------------------------
+static void ApplySceneToBaseNodesCallback(ik_node_t* ikNode)
+{
+    Node* node = (Node*)ikNode->user_data;
+    ikNode->rotation = QuatUrho2IK(node->GetWorldRotation());
+    ikNode->position = Vec3Urho2IK(node->GetWorldPosition());
+}
 static void ApplySceneToActivePoseCallback(ik_node_t* ikNode)
 {
     Node* node = (Node*)ikNode->user_data;
@@ -479,7 +499,8 @@ static void ApplySceneToActivePoseCallback(ik_node_t* ikNode)
 }
 void IKSolver::ApplySceneToActivePose()
 {
-    ik_solver_iterate_tree(solver_, ApplySceneToActivePoseCallback);
+    ik_solver_iterate_base_nodes(solver_, ApplySceneToBaseNodesCallback);
+    ik_solver_iterate_chain_tree(solver_, ApplySceneToActivePoseCallback);
 }
 
 // ----------------------------------------------------------------------------

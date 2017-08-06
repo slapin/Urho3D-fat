@@ -36,14 +36,14 @@ chain_tree_destruct(chain_tree_t* chain_tree)
 void
 chain_island_construct(chain_island_t* chain_tree)
 {
-    chain_construct(&chain_tree->root_chain);
+    chain_construct(&chain_tree->base_chain);
 }
 
 /* ------------------------------------------------------------------------- */
 void
 chain_island_destruct(chain_island_t* chain_tree)
 {
-    chain_destruct(&chain_tree->root_chain);
+    chain_destruct(&chain_tree->base_chain);
 }
 
 /* ------------------------------------------------------------------------- */
@@ -105,13 +105,13 @@ count_chains_recursive(chain_t* chain)
     return counter;
 }
 int
-count_chains_exclude_root(chain_tree_t* chain_tree)
+count_chains(chain_tree_t* chain_tree)
 {
-    int counter = 1;
+    int counter = 0;
     ORDERED_VECTOR_FOR_EACH(&chain_tree->islands, chain_island_t, island)
-        counter += count_chains_recursive(&island->root_chain);
+        counter += count_chains_recursive(&island->base_chain);
     ORDERED_VECTOR_END_EACH
-    return counter - 1; /* exclude root chain */
+    return counter;
 }
 
 /* ------------------------------------------------------------------------- */
@@ -120,9 +120,9 @@ mark_involved_nodes(ik_solver_t* solver, bstv_t* involved_nodes)
 {
     /*
      * Traverse the chain of parents starting at each effector node and ending
-     * at the root node of the tree and mark every node on the way. Each
+     * at the sub-base node of the tree and mark every node on the way. Each
      * effector specifies a maximum chain length, which means it's possible
-     * that we won't hit the root node.
+     * that we won't hit the base node.
      */
     ordered_vector_t* effector_nodes_list = &solver->effector_nodes_list;
     ORDERED_VECTOR_FOR_EACH(effector_nodes_list, ik_node_t*, p_effector_node)
@@ -250,7 +250,7 @@ recursively_build_chain_tree(chain_tree_t* chain_tree,
                         return -1;
                     }
                     chain_island_construct(island);
-                    child_chain = &island->root_chain;
+                    child_chain = &island->base_chain;
                 }
                 else
                 {
@@ -339,7 +339,7 @@ rebuild_chain_tree(ik_solver_t* solver)
     ik_log_message("There are %d effector(s) involving %d node(s). %d chain(s) were created",
                    ordered_vector_count(&solver->effector_nodes_list),
                    involved_nodes_count,
-                   count_chains_exclude_root(&solver->chain_tree));
+                   count_chains(&solver->chain_tree));
 
     bstv_clear_free(&involved_nodes);
 
@@ -379,7 +379,7 @@ calculate_segment_lengths(chain_tree_t* chain_tree)
 {
     /* TODO: Implement again, take into consideration bone skipping */
     ORDERED_VECTOR_FOR_EACH(&chain_tree->islands, chain_island_t, island)
-        calculate_segment_lengths_in_island(&island->root_chain);
+        calculate_segment_lengths_in_island(&island->base_chain);
     ORDERED_VECTOR_END_EACH
 }
 
@@ -396,7 +396,7 @@ calculate_global_rotations_of_children(chain_t* chain)
         quat_t rotation;
         calculate_global_rotations(child);
 
-        /* Note: All chains that aren't the root chain *MUST* have at least two nodes */
+        /* Note: All chains *MUST* have at least two nodes */
         assert(ordered_vector_count(&child->nodes) >= 2);
         rotation = (*(ik_node_t**)
                 ordered_vector_get_element(&child->nodes,
@@ -413,9 +413,9 @@ calculate_global_rotations_of_children(chain_t* chain)
 
     /*
      * Assuming there was more than 1 child chain and assuming we aren't the
-     * root node, then the child chains we just iterated must share the same
-     * base node (which is our tip node). Average the accumulated quaternion
-     * and set this node's correct solved rotation.
+     * base node, then the child chains we just iterated must share the same
+     * sub-base node (which is our tip node). Average the accumulated
+     * quaternion and set this node's correct solved rotation.
      */
     if (average_count > 0 && ordered_vector_count(&chain->nodes) != 0)
     {

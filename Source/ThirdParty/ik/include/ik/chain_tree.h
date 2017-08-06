@@ -27,7 +27,7 @@ struct chain_t
 
 struct chain_island_t
 {
-    chain_t       root_chain;
+    chain_t       base_chain;
 };
 
 struct chain_tree_t
@@ -35,41 +35,41 @@ struct chain_tree_t
     ordered_vector_t islands; /* list of chain_island_t objects */
 };
 
-void
+IK_PRIVATE_API void
 chain_tree_construct(chain_tree_t* chain_trees);
 
-void
+IK_PRIVATE_API void
 chain_tree_destruct(chain_tree_t* chain_trees);
 
-void
+IK_PRIVATE_API void
 chain_island_construct(chain_island_t* chain_island);
 
-void
+IK_PRIVATE_API void
 chain_island_destruct(chain_island_t* chain_island);
 
-chain_t*
+IK_PRIVATE_API chain_t*
 chain_create(void);
 
-void
+IK_PRIVATE_API void
 chain_destroy(chain_t* chain);
 
 /*!
  * @brief Initialises an allocated chain object.
  */
-void
+IK_PRIVATE_API void
 chain_construct(chain_t* chain);
 
 /*!
  * @brief Destroys and frees all members, but does not deallocate the chain
  * object itself.
  */
-void
+IK_PRIVATE_API void
 chain_destruct(chain_t* chain);
 
 /*!
  * @brief Clears all children and nodes.
  */
-void
+IK_PRIVATE_API void
 chain_clear_free(chain_t* chain);
 
 /*!
@@ -87,7 +87,7 @@ chain_clear_free(chain_t* chain);
  * base, sub-base joints, and end effectors. These chains are inserted into
  * the chain tree.
  */
-int
+IK_PRIVATE_API int
 rebuild_chain_tree(ik_solver_t* solver);
 
 /*!
@@ -101,32 +101,32 @@ rebuild_chain_tree(ik_solver_t* solver);
  * has translational motions. In this case, you will have to recalculate the
  * segment lengths every time node positions change.
  */
-void
+IK_PRIVATE_API void
 calculate_segment_lengths(chain_tree_t* chain_tree);
 
 /*!
- * @brief Counts all of the chains in the tree, excluding the root chain.
+ * @brief Counts all of the chains in the tree.
  */
-int
-count_chains_exclude_root(chain_tree_t* chain_tree);
+IK_PRIVATE_API int
+count_chains(chain_tree_t* chain_tree);
 
-void
+IK_PRIVATE_API void
 calculate_global_rotations(chain_t* chain);
 
 #ifdef IK_DOT_OUTPUT
 /*!
  * @brief Dumps the chain tree to DOT format.
- * @param[in] root The root node of the user created tree. This is a parameter
- * because the root chain does not necessarily hold the root node of the tree
- * because the root node doesn't have to be part of the IK problem.
- * @note Doesn't necessarily have to be the root node, it will dump the tree
+ * @param[in] base The base node of the user created tree. This is a parameter
+ * because the base chain does not necessarily hold the base node of the tree
+ * because the base node doesn't have to be part of the IK problem.
+ * @note Doesn't necessarily have to be the base node, it will dump the tree
  * beginning at this node.
- * @param[in] chain Usually the root chain. Doesn't necessarily have to be the
- * root, in which case it will dump beginning at this chain.
+ * @param[in] chain Usually the base chain. Doesn't necessarily have to be the
+ * base, in which case it will dump beginning at this chain.
  * @param[in] file_name The name of the file to dump to.
  */
-void
-dump_to_dot(ik_node_t* root, chain_tree_t* chain_tree, const char* file_name);
+IK_PRIVATE_API void
+dump_to_dot(ik_node_t* base, chain_tree_t* chain_tree, const char* file_name);
 #endif /* IK_DOT_OUTPUT */
 
 C_HEADER_END

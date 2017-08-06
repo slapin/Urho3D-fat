@@ -445,38 +445,31 @@ solver_FABRIK_solve(ik_solver_t* solver)
     int iteration = solver->max_iterations;
     ik_real tolerance_squared = solver->tolerance * solver->tolerance;
 
-    /*
-     * FABRIK works entirely in global space, so we need to transform the tree
-     * first, solve, then transform it back to local space. The algorithm
-     * requires both the original and the active pose in local space.
-     */
-    ik_node_local_to_global(solver->tree, NODE_ORIGINAL | NODE_ACTIVE);
-
     while (iteration-- > 0)
     {
-        vec3_t root_position;
+        vec3_t base_position;
 
         /* Actual algorithm here */
         ORDERED_VECTOR_FOR_EACH(&fabrik->chain_tree.islands, chain_island_t, island)
-            chain_t* root_chain = &island->root_chain;
+            chain_t* base_chain = &island->base_chain;
 
             /* The algorithm assumes chains have at least one bone. This should
              * be asserted while building the chain trees, but it can't hurt
              * to double check */
-            assert(ordered_vector_count(&root_chain->nodes) > 1);
+            assert(ordered_vector_count(&base_chain->nodes) > 1);
 
-            root_position = (*(ik_node_t**)ordered_vector_get_element(&root_chain->nodes,
-                    ordered_vector_count(&root_chain->nodes) - 1))->position;
+            base_position = (*(ik_node_t**)ordered_vector_get_element(&base_chain->nodes,
+                    ordered_vector_count(&base_chain->nodes) - 1))->position;
 
             if (solver->flags & SOLVER_CALCULATE_TARGET_ROTATIONS)
-                solve_chain_forwards_with_target_rotation(root_chain);
+                solve_chain_forwards_with_target_rotation(base_chain);
             else
-                solve_chain_forwards(root_chain);
+                solve_chain_forwards(base_chain);
 
             if (solver->flags & SOLVER_ENABLE_CONSTRAINTS)
-                solve_chain_backwards_with_constraints(root_chain, root_position, root_position);
+                solve_chain_backwards_with_constraints(base_chain, base_position, base_position);
             else
-                solve_chain_backwards(root_chain, root_position);
+                solve_chain_backwards(base_chain, base_position);
         ORDERED_VECTOR_END_EACH
 
         /* Check if all effectors are within range */
@@ -490,9 +483,6 @@ solver_FABRIK_solve(ik_solver_t* solver)
             }
         ORDERED_VECTOR_END_EACH
     }
-
-    /* Transform the original pose and the result back into local space */
-    ik_node_global_to_local(solver->tree, NODE_ORIGINAL | NODE_ACTIVE);
 
     return result;
 }
