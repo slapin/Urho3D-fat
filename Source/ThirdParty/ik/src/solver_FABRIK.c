@@ -437,45 +437,6 @@ solve_chain_backwards(chain_t* chain, vec3_t target_position)
 }
 
 /* ------------------------------------------------------------------------- */
-static void
-initial_to_global_recursive(ik_node_t* node, quat_t acc_rot)
-{
-    quat_t rotation = node->original_rotation;
-    quat_mul_quat(node->original_rotation.f, acc_rot.f);
-    quat_mul_quat(acc_rot.f, rotation.f);
-
-    BSTV_FOR_EACH(&node->children, ik_node_t, guid, child)
-        initial_to_global_recursive(child, acc_rot);
-    BSTV_END_EACH
-}
-void
-initial_rotation_to_global(ik_node_t* node)
-{
-    quat_t acc_rot = {{0, 0, 0, 1}};
-    initial_to_global_recursive(node, acc_rot);
-}
-
-/* ------------------------------------------------------------------------- */
-static void
-initial_to_local_recursive(ik_node_t* node, quat_t acc_rot)
-{
-    quat_t inv_rotation = acc_rot;
-    quat_conj(inv_rotation.f);
-    quat_mul_quat(node->original_rotation.f, inv_rotation.f);
-    quat_mul_quat(acc_rot.f, node->original_rotation.f);
-
-    BSTV_FOR_EACH(&node->children, ik_node_t, guid, child)
-        initial_to_local_recursive(child, acc_rot);
-    BSTV_END_EACH
-}
-void
-initial_rotation_to_local(ik_node_t* node)
-{
-    quat_t acc_rot = {{0, 0, 0, 1}};
-    initial_to_local_recursive(node, acc_rot);
-}
-
-/* ------------------------------------------------------------------------- */
 int
 solver_FABRIK_solve(ik_solver_t* solver)
 {
@@ -485,22 +446,11 @@ solver_FABRIK_solve(ik_solver_t* solver)
     ik_real tolerance_squared = solver->tolerance * solver->tolerance;
 
     /*
-     * NOTE: Kind of a hack. Initial rotations are in local space during
-     * iteration.
-     *
-     * FABRIK works entirely in global space, so when constraints come into
-     * play, it is necessary to calculate joint angles and convert global
-     * positions into local positions. The constrained angles are then
-     * converted back again into global space.
-     *
-     * As you can imagine, this process is costly. We can actually cut down on
-     * a significant number of operations if the initial rotations are in local
-     * space. The algorithm doesn't need initial rotations, so this should have
-     * no side effects. We just need to make sure to convert the rotations back
-     * into global space after the algorithm has completed.
+     * FABRIK works entirely in global space, so we need to transform the tree
+     * first, solve, then transform it back to local space. The algorithm
+     * requires both the original and the active pose in local space.
      */
-    if (solver->flags & SOLVER_ENABLE_CONSTRAINTS)
-        initial_rotation_to_local(solver->tree);
+    ik_node_local_to_global(solver->tree, NODE_ORIGINAL | NODE_ACTIVE);
 
     while (iteration-- > 0)
     {
@@ -541,9 +491,8 @@ solver_FABRIK_solve(ik_solver_t* solver)
         ORDERED_VECTOR_END_EACH
     }
 
-    /* Restore initial rotations to global space again. See above as to why. */
-    if (solver->flags & SOLVER_ENABLE_CONSTRAINTS)
-        initial_rotation_to_global(solver->tree);
+    /* Transform the original pose and the result back into local space */
+    ik_node_global_to_local(solver->tree, NODE_ORIGINAL | NODE_ACTIVE);
 
     return result;
 }

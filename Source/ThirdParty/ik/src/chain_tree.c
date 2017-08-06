@@ -353,17 +353,21 @@ rebuild_chain_tree(ik_solver_t* solver)
 static void
 calculate_segment_lengths_in_island(chain_t* island)
 {
+    /*
+     * The nodes are in local space, so the segment length is just the length
+     * of the node->position vector.
+     *
+     * The segment length of a node refers to the distance to its parent rather
+     * than to the distance to its child. Thus, the base node of a chain does
+     * not need to be iterated.
+     */
     int last_idx = ordered_vector_count(&island->nodes) - 1;
     while (last_idx-- > 0)
     {
-        ik_node_t* child_node =
-            *(ik_node_t**)ordered_vector_get_element(&island->nodes, last_idx + 0);
-        ik_node_t* parent_node =
-            *(ik_node_t**)ordered_vector_get_element(&island->nodes, last_idx + 1);
+        ik_node_t* node =
+            *(ik_node_t**)ordered_vector_get_element(&island->nodes, last_idx);
 
-        vec3_t diff = child_node->original_position;
-        vec3_sub_vec3(diff.f, parent_node->original_position.f);
-        child_node->segment_length = vec3_length(diff.f);
+        node->segment_length = vec3_length(node->position.f);
     }
 
     ORDERED_VECTOR_FOR_EACH(&island->children, chain_t, child)
@@ -373,7 +377,7 @@ calculate_segment_lengths_in_island(chain_t* island)
 void
 calculate_segment_lengths(chain_tree_t* chain_tree)
 {
-    /* TODO: Implement again, take into consideration merged bones */
+    /* TODO: Implement again, take into consideration bone skipping */
     ORDERED_VECTOR_FOR_EACH(&chain_tree->islands, chain_island_t, island)
         calculate_segment_lengths_in_island(&island->root_chain);
     ORDERED_VECTOR_END_EACH

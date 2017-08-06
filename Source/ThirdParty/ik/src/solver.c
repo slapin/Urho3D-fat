@@ -30,11 +30,6 @@ ik_solver_create(enum solver_algorithm_e algorithm)
      */
     switch (algorithm)
     {
-    case SOLVER_FABRIK:
-        solver_size = sizeof(fabrik_t);
-        solver_construct = solver_FABRIK_construct;
-        break;
-
     case SOLVER_TWO_BONE:
         solver_size = sizeof(two_bone_t);
         solver_construct = solver_2bone_construct;
@@ -44,7 +39,12 @@ ik_solver_create(enum solver_algorithm_e algorithm)
         solver_size = sizeof(one_bone_t);
         solver_construct = solver_1bone_construct;
         break;
-        
+
+    case SOLVER_FABRIK:
+        solver_size = sizeof(fabrik_t);
+        solver_construct = solver_FABRIK_construct;
+        break;
+
     case SOLVER_MSD:
         solver_size = sizeof(msd_t);
         solver_construct = solver_MSD_construct;

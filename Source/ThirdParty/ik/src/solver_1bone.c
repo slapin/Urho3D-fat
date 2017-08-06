@@ -54,6 +54,8 @@ solver_1bone_post_chain_build(ik_solver_t* solver)
 int
 solver_1bone_solve(ik_solver_t* solver)
 {
+    ik_node_local_to_global(solver->tree, NODE_ACTIVE);
+
     ORDERED_VECTOR_FOR_EACH(&solver->chain_tree.islands, chain_island_t, island)
         ik_node_t* node_tip;
         ik_node_t* node_base;
@@ -71,6 +73,8 @@ solver_1bone_solve(ik_solver_t* solver)
         vec3_mul_scalar(node_tip->position.f, node_tip->segment_length);
         vec3_add_vec3(node_tip->position.f, node_base->position.f);
     ORDERED_VECTOR_END_EACH
+
+    ik_node_global_to_local(solver->tree, NODE_ACTIVE);
 
     return 0;
 }

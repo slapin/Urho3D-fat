@@ -156,10 +156,16 @@ IK_PUBLIC_API int
 ik_solver_rebuild_chain_trees(ik_solver_t* solver);
 
 /*!
- * @brief Unusual, but if you have a tree with translational motions such that
- * the distances between nodes changes (perhaps a slider?), you can call this
- * to re-calculate the segment lengths after assigning new positions to the
- * nodes.
+ * @brief Computes the distances between the nodes and stores them in
+ * node->segment_length. The positions used for this computation are those of
+ * the active pose (node->position). For this reason, make sure that you've
+ * correctly initialised the active pose before calling this function.
+ *
+ * The segment lengths are typically computed once during initialisation and
+ * then never again. Of course, there are exceptions, such as when your tree
+ * has translational motions. In this case, you will have to recalculate the
+ * segment lengths every time node positions change.
+ *
  * @note This function gets called by ik_solver_rebuild_data().
  */
 IK_PUBLIC_API void

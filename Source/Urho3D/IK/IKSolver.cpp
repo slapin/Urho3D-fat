@@ -221,8 +221,11 @@ ik_node_t* IKSolver::CreateIKNodeFromUrhoNode(const Node* node)
     ik_node_t* ikNode = ik_node_create(node->GetID());
 
     // Set initial position/rotation and pass in Node* as user data for later
-    ikNode->original_position = Vec3Urho2IK(node->GetWorldPosition());
-    ikNode->original_rotation = QuatUrho2IK(node->GetWorldRotation());
+    ikNode->original_position = Vec3Urho2IK(node->GetPosition());
+    ikNode->original_rotation = QuatUrho2IK(node->GetRotation());
+    // The active pose needs to be set as well for segment lengths to be calculated correctly
+    ikNode->position = ikNode->original_position;
+    ikNode->rotation = ikNode->original_rotation;
     ikNode->user_data = (void*)node;
 
     /*
@@ -432,35 +435,35 @@ void IKSolver::Solve()
 }
 
 // ----------------------------------------------------------------------------
-static void ApplyInitialPoseToSceneCallback(ik_node_t* ikNode)
+static void ApplyOriginalPoseToSceneCallback(ik_node_t* ikNode)
 {
     Node* node = (Node*)ikNode->user_data;
-    node->SetWorldRotation(QuatIK2Urho(&ikNode->original_rotation));
-    node->SetWorldPosition(Vec3IK2Urho(&ikNode->original_position));
+    node->SetRotation(QuatIK2Urho(&ikNode->original_rotation));
+    node->SetPosition(Vec3IK2Urho(&ikNode->original_position));
 }
 void IKSolver::ApplyOriginalPoseToScene()
 {
-    ik_solver_iterate_tree(solver_, ApplyInitialPoseToSceneCallback);
+    ik_solver_iterate_tree(solver_, ApplyOriginalPoseToSceneCallback);
 }
 
 // ----------------------------------------------------------------------------
-static void ApplySceneToInitialPoseCallback(ik_node_t* ikNode)
+static void ApplySceneToOriginalPoseCallback(ik_node_t* ikNode)
 {
     Node* node = (Node*)ikNode->user_data;
-    ikNode->original_rotation = QuatUrho2IK(node->GetWorldRotation());
-    ikNode->original_position = Vec3Urho2IK(node->GetWorldPosition());
+    ikNode->original_rotation = QuatUrho2IK(node->GetRotation());
+    ikNode->original_position = Vec3Urho2IK(node->GetPosition());
 }
 void IKSolver::ApplySceneToOriginalPose()
 {
-    ik_solver_iterate_tree(solver_, ApplySceneToInitialPoseCallback);
+    ik_solver_iterate_tree(solver_, ApplySceneToOriginalPoseCallback);
 }
 
 // ----------------------------------------------------------------------------
 static void ApplyActivePoseToSceneCallback(ik_node_t* ikNode)
 {
     Node* node = (Node*)ikNode->user_data;
-    node->SetWorldRotation(QuatIK2Urho(&ikNode->rotation));
-    node->SetWorldPosition(Vec3IK2Urho(&ikNode->position));
+    node->SetRotation(QuatIK2Urho(&ikNode->rotation));
+    node->SetPosition(Vec3IK2Urho(&ikNode->position));
 }
 void IKSolver::ApplyActivePoseToScene()
 {
@@ -471,8 +474,8 @@ void IKSolver::ApplyActivePoseToScene()
 static void ApplySceneToActivePoseCallback(ik_node_t* ikNode)
 {
     Node* node = (Node*)ikNode->user_data;
-    ikNode->rotation = QuatUrho2IK(node->GetWorldRotation());
-    ikNode->position = Vec3Urho2IK(node->GetWorldPosition());
+    ikNode->rotation = QuatUrho2IK(node->GetRotation());
+    ikNode->position = Vec3Urho2IK(node->GetPosition());
 }
 void IKSolver::ApplySceneToActivePose()
 {
@@ -740,6 +743,9 @@ void IKSolver::DrawDebugGeometry(DebugRenderer* debug, bool depthTest)
     for (PODVector<IKEffector*>::ConstIterator it = effectorList_.Begin(); it != effectorList_.End(); ++it)
         (*it)->DrawDebugGeometry(debug, depthTest);
 
+    // Need the tree in global space for debug drawing
+    ik_node_local_to_global(solver_->tree, NODE_ORIGINAL | NODE_ACTIVE);
+
     ORDERED_VECTOR_FOR_EACH(&solver_->effector_nodes_list, ik_node_t*, pnode)
         ik_effector_t* effector = (*pnode)->effector;
 
@@ -803,6 +809,9 @@ void IKSolver::DrawDebugGeometry(DebugRenderer* debug, bool depthTest)
             b = b->parent;
         }
     ORDERED_VECTOR_END_EACH
+
+    // Revert back to local space
+    ik_node_global_to_local(solver_->tree, NODE_ORIGINAL | NODE_ACTIVE);
 }
 
 // ----------------------------------------------------------------------------

@@ -90,6 +90,17 @@ chain_clear_free(chain_t* chain);
 int
 rebuild_chain_tree(ik_solver_t* solver);
 
+/*!
+ * Computes the distances between the nodes and stores them in
+ * node->segment_length. The positions used for this computation are those of
+ * the active pose (node->position). For this reason, make sure that you've
+ * correctly initialised the active pose before calling this function.
+ *
+ * The segment lengths are typically computed once during initialisation and
+ * then never again. Of course, there are exceptions, such as when your tree
+ * has translational motions. In this case, you will have to recalculate the
+ * segment lengths every time node positions change.
+ */
 void
 calculate_segment_lengths(chain_tree_t* chain_tree);
 
